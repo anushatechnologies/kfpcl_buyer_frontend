@@ -15,8 +15,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { authApi } from "@/api/auth.api";
+import { firebaseSendOtp, firebaseVerifyOtp, resetFirebaseSession } from "@/api/firebaseAuth";
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "@/store/authStore";
+import { HAS_FIREBASE_CONFIG } from "@/app/lib/config";
 
 const BUSINESS_TYPES = [
   "Wholesaler",
@@ -94,11 +96,18 @@ export function CustomerSignup() {
     return () => clearInterval(timer);
   }, [cooldown]);
 
+  // Clean up reCAPTCHA on unmount
+  useEffect(() => {
+    return () => {
+      resetFirebaseSession();
+    };
+  }, []);
+
   // 1. Send OTP
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
-    if (cleanPhone.length !== 10) {
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
+    if (clean10Digits.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number");
       return;
     }
@@ -108,22 +117,28 @@ export function CustomerSignup() {
 
     try {
       // API 1: Check phone
-      const checkRes = await authApi.checkPhone(cleanPhone).catch(() => ({ exists: false }));
+      const checkRes = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false }));
       if (checkRes.exists) {
         toast.info("This phone number is already registered. Redirecting to login...");
         navigate(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
         return;
       }
 
-      // API 2: Send OTP
-      const sendRes = await authApi.sendOtp(cleanPhone);
-      toast.success(sendRes.message || "Verification code sent to your mobile number via SMS.");
+      if (HAS_FIREBASE_CONFIG) {
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+        toast.success(result.message);
+      } else {
+        const sendRes = await authApi.sendOtp(clean10Digits);
+        toast.success(sendRes.message || "Verification code sent to your mobile number via SMS.");
+      }
+
       setStep("otp");
       setCooldown(60);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to send OTP via SMS. Please try again.";
       setErrorMessage(msg);
       toast.error(msg);
+      resetFirebaseSession();
     } finally {
       setIsLoading(false);
     }
@@ -132,13 +147,19 @@ export function CustomerSignup() {
   // 2. Resend OTP
   const handleResendOtp = async () => {
     if (cooldown > 0 || isLoading) return;
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
     setIsLoading(true);
     setErrorMessage("");
+    resetFirebaseSession();
 
     try {
-      const res = await authApi.resendOtp(cleanPhone);
-      toast.success(res.message || "New verification code sent via SMS.");
+      if (HAS_FIREBASE_CONFIG) {
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+        toast.success(`New OTP sent — ${result.message}`);
+      } else {
+        const res = await authApi.resendOtp(clean10Digits);
+        toast.success(res.message || "New verification code sent via SMS.");
+      }
       setCooldown(60);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to resend verification code via SMS.";
@@ -152,11 +173,11 @@ export function CustomerSignup() {
   // 3. Verify OTP -> get verificationToken
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
     const cleanOtp = otp.trim();
 
-    if (cleanOtp.length < 4) {
-      setErrorMessage("Please enter the 6-digit OTP");
+    if (cleanOtp.length < 6) {
+      setErrorMessage("Please enter the complete 6-digit OTP");
       return;
     }
 
@@ -164,11 +185,19 @@ export function CustomerSignup() {
     setErrorMessage("");
 
     try {
-      // API 3: Verify OTP
-      const res = await authApi.verifyOtp(cleanPhone, cleanOtp);
+      if (HAS_FIREBASE_CONFIG) {
+        const fbResult = await firebaseVerifyOtp(cleanOtp);
+        // Use idToken as verification credential
+        setVerificationToken(fbResult.idToken);
+        toast.success("Phone verified successfully! Please complete your profile.");
+        setStep("details");
+        return;
+      }
+
+      // Fallback: non-Firebase backend
+      const res = await authApi.verifyOtp(clean10Digits, cleanOtp);
 
       if (res.isRegistered && res.accessToken && res.refreshToken && res.user) {
-        // Already registered user
         setAuthFromBackend(res.user, res.accessToken, res.refreshToken);
         toast.success(`Welcome back, ${res.user.fullName || "Buyer"}!`);
         navigate(redirectTarget, { replace: true });
@@ -243,6 +272,9 @@ export function CustomerSignup() {
 
   return (
     <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center px-4 py-12 bg-gradient-to-b from-[#F7F9F8] to-white">
+      {/* Invisible reCAPTCHA container for Firebase */}
+      <div id="recaptcha-container" />
+
       <div className="w-full max-w-lg rounded-3xl border border-gray-200/90 bg-white p-7 sm:p-9 shadow-[0_20px_60px_rgba(10,22,40,0.08)]">
         {/* Header */}
         <div className="text-center mb-6">

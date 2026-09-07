@@ -1,7 +1,7 @@
 /**
  * Firebase Phone Authentication Service
  * Sends real OTP via Firebase to the user's mobile number.
- * OTP is delivered by Firebase through SMS — never shown on screen.
+ * OTP is delivered by Firebase through SMS.
  */
 
 import {
@@ -9,127 +9,240 @@ import {
   signInWithPhoneNumber,
   type ConfirmationResult,
   type Auth,
-} from 'firebase/auth';
-import { getFirebaseAuthInstance } from '@/app/lib/firebase';
+} from "firebase/auth";
+import { getFirebaseAuthInstance } from "@/app/lib/firebase";
 
-let recaptchaVerifier: RecaptchaVerifier | null = null;
-let confirmationResult: ConfirmationResult | null = null;
+declare global {
+  interface Window {
+    recaptchaVerifier?: RecaptchaVerifier | null;
+    confirmationResult?: ConfirmationResult | null;
+  }
+}
 
 /**
- * Initialize invisible reCAPTCHA on a container element.
- * Call this once before sending OTP.
+ * 1. Helper to safely get or create RecaptchaVerifier
+ * Cleans up any existing instance and resets container DOM to prevent
+ * "reCAPTCHA has already been rendered in this element" errors.
  */
-export function setupRecaptcha(containerId: string): RecaptchaVerifier {
+export const setupRecaptcha = (containerId: string = "recaptcha-container"): RecaptchaVerifier => {
   const auth: Auth = getFirebaseAuthInstance();
 
-  // Clear previous verifier if it exists
-  if (recaptchaVerifier) {
+  // Clear previous verifier instance if it exists
+  if (typeof window !== "undefined" && window.recaptchaVerifier) {
     try {
-      recaptchaVerifier.clear();
-    } catch (_) {
-      // ignore
+      window.recaptchaVerifier.clear();
+    } catch (e) {
+      console.warn("Could not clear previous recaptcha", e);
     }
-    recaptchaVerifier = null;
+    window.recaptchaVerifier = null;
   }
 
-  recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-    size: 'invisible',
+  // Ensure container element is clean in the DOM
+  if (typeof document !== "undefined") {
+    let container = document.getElementById(containerId);
+    if (!container) {
+      container = document.createElement("div");
+      container.id = containerId;
+      container.style.display = "none";
+      document.body.appendChild(container);
+    } else {
+      container.innerHTML = "";
+    }
+  }
+
+  const verifier = new RecaptchaVerifier(auth, containerId, {
+    size: "invisible",
     callback: () => {
-      // reCAPTCHA solved — OTP will be sent
+      // reCAPTCHA solved
     },
-    'expired-callback': () => {
-      // Reset verifier when reCAPTCHA expires
-      recaptchaVerifier = null;
+    "expired-callback": () => {
+      console.warn("reCAPTCHA expired");
+      if (typeof window !== "undefined") {
+        window.recaptchaVerifier = null;
+      }
     },
   });
 
-  return recaptchaVerifier;
-}
-
-/**
- * Send OTP via Firebase Phone Auth.
- * @param phoneNumber - 10-digit Indian mobile number (without country code)
- * @param containerId - DOM element ID for invisible reCAPTCHA anchor
- */
-export async function firebaseSendOtp(
-  phoneNumber: string,
-  containerId: string = 'firebase-recaptcha-container'
-): Promise<{ success: true; message: string }> {
-  const cleanPhone = phoneNumber.replace(/\D/g, '').slice(-10);
-  if (cleanPhone.length !== 10) {
-    throw new Error('Please enter a valid 10-digit mobile number.');
+  if (typeof window !== "undefined") {
+    window.recaptchaVerifier = verifier;
   }
 
-  const e164Phone = `+91${cleanPhone}`; // Indian numbers
-
-  const verifier = setupRecaptcha(containerId);
-  confirmationResult = await signInWithPhoneNumber(getFirebaseAuthInstance(), e164Phone, verifier);
-
-  return {
-    success: true,
-    message: `OTP sent to +91 ******${cleanPhone.slice(-4)} via SMS`,
-  };
-}
+  return verifier;
+};
 
 /**
- * Verify the OTP entered by the user via Firebase.
- * Returns the Firebase UID and ID token on success.
+ * 2. Send Real SMS via Firebase Phone Auth
+ * Sanitizes phone number strictly to E.164 (+91XXXXXXXXXX) with NO SPACES to prevent
+ * identitytoolkit 400 Bad Request.
  */
-export async function firebaseVerifyOtp(otp: string): Promise<{
+export const firebaseSendOtp = async (
+  rawPhoneNumber: string,
+  containerId: string = "recaptcha-container"
+): Promise<{ success: true; message: string }> => {
+  try {
+    // Sanitize phone number strictly to E.164 without any spaces or hyphens:
+    const clean10Digits = rawPhoneNumber.replace(/[^0-9]/g, "").slice(-10);
+    if (clean10Digits.length !== 10) {
+      throw new Error("Please enter a valid 10-digit mobile number");
+    }
+
+    const e164Phone = `+91${clean10Digits}`; // e.g. "+919959940727" (NO SPACES!)
+    const auth = getFirebaseAuthInstance();
+    const appVerifier = setupRecaptcha(containerId);
+
+    const confirmation = await signInWithPhoneNumber(auth, e164Phone, appVerifier);
+
+    // Store confirmation object in window for OTP verification
+    if (typeof window !== "undefined") {
+      window.confirmationResult = confirmation;
+    }
+
+    return {
+      success: true,
+      message: `OTP sent to +91 ******${clean10Digits.slice(-4)} via SMS`,
+    };
+  } catch (err: any) {
+    console.error("Firebase SMS Send Error:", err);
+
+    // Clean up reCAPTCHA so user can retry without 'already rendered' error
+    if (typeof window !== "undefined" && window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (e) {
+        // ignore
+      }
+      window.recaptchaVerifier = null;
+    }
+
+    const code: string = err?.code || "";
+    if (code === "auth/invalid-phone-number") {
+      throw new Error("Invalid phone number format. Please enter a valid 10-digit number.");
+    }
+    if (code === "auth/too-many-requests") {
+      throw new Error("Too many attempts. Please wait a moment before requesting another OTP.");
+    }
+    if (code === "auth/captcha-check-failed") {
+      throw new Error("reCAPTCHA security check failed. Please refresh and try again.");
+    }
+    if (code === "auth/network-request-failed") {
+      throw new Error("Network request failed. Please check your internet connection.");
+    }
+
+    throw new Error(err?.message || "Failed to send OTP: " + (err?.message || err));
+  }
+};
+
+/**
+ * 3. Confirm OTP and obtain Firebase ID Token
+ */
+export const firebaseVerifyOtp = async (
+  enteredOtp: string
+): Promise<{
   success: true;
   uid: string;
   idToken: string;
   phoneNumber: string;
-}> {
-  if (!confirmationResult) {
-    throw new Error('No OTP session found. Please request a new OTP.');
+}> => {
+  const confirmation = typeof window !== "undefined" ? window.confirmationResult : null;
+
+  if (!confirmation) {
+    throw new Error("Session expired. Please request a new OTP.");
   }
 
-  const cleanOtp = otp.trim();
+  const cleanOtp = (enteredOtp || "").trim();
   if (!cleanOtp || cleanOtp.length < 6) {
-    throw new Error('Please enter the complete 6-digit OTP.');
+    throw new Error("Please enter the complete 6-digit verification code.");
   }
 
   try {
-    const credential = await confirmationResult.confirm(cleanOtp);
-    const user = credential.user;
+    const result = await confirmation.confirm(cleanOtp);
+    const user = result.user;
     const idToken = await user.getIdToken();
 
-    // Clear after successful verification
-    confirmationResult = null;
+    // Clean up session confirmation after successful verification
+    if (typeof window !== "undefined") {
+      window.confirmationResult = null;
+    }
 
     return {
       success: true,
       uid: user.uid,
       idToken,
-      phoneNumber: user.phoneNumber || '',
+      phoneNumber: user.phoneNumber || "",
     };
   } catch (err: any) {
-    const code: string = err?.code || '';
-    if (code === 'auth/invalid-verification-code') {
-      throw new Error('Incorrect OTP. Please check the code sent to your phone.');
+    console.error("Invalid OTP:", err);
+    const code: string = err?.code || "";
+    if (code === "auth/invalid-verification-code") {
+      throw new Error("Invalid verification code. Please check and try again.");
     }
-    if (code === 'auth/code-expired') {
-      throw new Error('OTP has expired. Please request a new code.');
+    if (code === "auth/code-expired") {
+      throw new Error("Verification code has expired. Please request a new OTP.");
     }
-    if (code === 'auth/session-expired') {
-      throw new Error('Session expired. Please request a new OTP.');
+    if (code === "auth/session-expired") {
+      throw new Error("Session expired. Please request a new OTP.");
     }
-    throw new Error(err?.message || 'OTP verification failed. Please try again.');
+    throw new Error(err?.message || "Invalid verification code. Please check and try again.");
   }
-}
+};
 
 /**
- * Reset the Firebase OTP session (e.g. when user changes phone number)
+ * 4. Helper to perform Backend Login after Firebase Verification
+ * POST https://api.kfpclexports.com/api/auth/firebase-login
  */
-export function resetFirebaseSession() {
-  confirmationResult = null;
-  if (recaptchaVerifier) {
-    try {
-      recaptchaVerifier.clear();
-    } catch (_) {
-      // ignore
-    }
-    recaptchaVerifier = null;
+export const firebaseLoginBackend = async ({
+  idToken,
+  phoneNumber,
+  fullName,
+  email = "",
+}: {
+  idToken: string;
+  phoneNumber?: string;
+  fullName?: string;
+  email?: string;
+}) => {
+  const response = await fetch("https://api.kfpclexports.com/api/auth/firebase-login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      idToken,
+      fcmToken: "",
+      fullName: fullName || `Buyer ${(phoneNumber || "").slice(-4) || "User"}`,
+      email: email || "",
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.message || "Backend login failed: " + (data?.message || "Unknown error"));
   }
-}
+
+  if (typeof window !== "undefined") {
+    if (data.accessToken) localStorage.setItem("accessToken", data.accessToken);
+    if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+    if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+  }
+
+  return data;
+};
+
+/**
+ * 5. Reset the Firebase OTP session & reCAPTCHA verifier
+ */
+export const resetFirebaseSession = () => {
+  if (typeof window !== "undefined") {
+    window.confirmationResult = null;
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (_) {}
+      window.recaptchaVerifier = null;
+    }
+    const container = document.getElementById("recaptcha-container");
+    if (container) {
+      container.innerHTML = "";
+    }
+  }
+};

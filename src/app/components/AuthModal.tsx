@@ -81,8 +81,8 @@ export function AuthModal() {
   // ─── 1. Send OTP via Firebase ────────────────────────────────────────────────
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
-    if (cleanPhone.length !== 10) {
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
+    if (clean10Digits.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number");
       return;
     }
@@ -92,16 +92,16 @@ export function AuthModal() {
 
     try {
       // Check if phone is already registered (soft check — never blocks)
-      const checkResult = await authApi.checkPhone(cleanPhone).catch(() => ({ exists: false }));
+      const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false }));
       setIsRegistered(checkResult.exists);
 
       if (HAS_FIREBASE_CONFIG) {
-        // ✅ Firebase Phone Auth — sends real OTP via SMS
-        const result = await firebaseSendOtp(cleanPhone, "firebase-recaptcha-container");
+        // ✅ Firebase Phone Auth — sends real OTP via SMS strictly to +91XXXXXXXXXX
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
         toast.success(result.message);
       } else {
         // Fallback: backend / local dev OTP (no Firebase config in env)
-        const result = await authApi.sendOtp(cleanPhone);
+        const result = await authApi.sendOtp(clean10Digits);
         toast.success(result.message || "OTP sent to your phone.");
       }
 
@@ -126,7 +126,7 @@ export function AuthModal() {
   // ─── 2. Resend OTP ──────────────────────────────────────────────────────────
   const handleResendOtp = async () => {
     if (cooldown > 0 || isLoading) return;
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
 
     setIsLoading(true);
     setErrorMessage("");
@@ -134,10 +134,10 @@ export function AuthModal() {
 
     try {
       if (HAS_FIREBASE_CONFIG) {
-        const result = await firebaseSendOtp(cleanPhone, "firebase-recaptcha-container");
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
         toast.success(`New OTP sent — ${result.message}`);
       } else {
-        const result = await authApi.resendOtp(cleanPhone);
+        const result = await authApi.resendOtp(clean10Digits);
         toast.success(result.message || "New OTP sent.");
       }
       setCooldown(60);
@@ -302,7 +302,7 @@ export function AuthModal() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             {/* Invisible reCAPTCHA anchor — required by Firebase */}
-            <div id="firebase-recaptcha-container" />
+            <div id="recaptcha-container" />
 
             {/* Close Button */}
             <button

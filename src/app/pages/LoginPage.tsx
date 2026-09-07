@@ -7,14 +7,15 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Building2,
-  Lock,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { authApi } from "@/api/auth.api";
+import { firebaseSendOtp, firebaseVerifyOtp, resetFirebaseSession } from "@/api/firebaseAuth";
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "@/store/authStore";
+import { useAuthStore as useStorefrontAuthStore } from "@/app/store/authStore";
+import { HAS_FIREBASE_CONFIG } from "@/app/lib/config";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export function LoginPage() {
   const redirectTarget = searchParams.get("redirect")?.startsWith("/") ? searchParams.get("redirect")! : "/account";
 
   const { isAuthenticated, setAuthFromBackend } = useAuthStore();
+  const setStorefrontSession = useStorefrontAuthStore((state) => state.setSession);
 
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
@@ -38,6 +40,13 @@ export function LoginPage() {
     }
   }, [isAuthenticated, navigate, redirectTarget]);
 
+  // Clean up reCAPTCHA on unmount or navigation
+  useEffect(() => {
+    return () => {
+      resetFirebaseSession();
+    };
+  }, []);
+
   // Cooldown countdown timer
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -49,8 +58,8 @@ export function LoginPage() {
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
-    if (cleanPhone.length !== 10) {
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
+    if (clean10Digits.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number");
       return;
     }
@@ -59,13 +68,19 @@ export function LoginPage() {
     setErrorMessage("");
 
     try {
-      // 1. Check if phone is registered (API 1)
-      const checkResult = await authApi.checkPhone(cleanPhone).catch(() => ({ exists: false }));
+      // 1. Check if phone is registered
+      const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false }));
       setIsRegistered(checkResult.exists);
 
-      // 2. Send OTP (API 2)
-      const sendResult = await authApi.sendOtp(cleanPhone);
-      toast.success(sendResult.message || "Verification code sent to your phone via SMS.");
+      if (HAS_FIREBASE_CONFIG) {
+        // ✅ Firebase Phone Auth — sends real OTP via SMS strictly to +91XXXXXXXXXX
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+        toast.success(result.message);
+      } else {
+        // Fallback: backend OTP
+        const sendResult = await authApi.sendOtp(clean10Digits);
+        toast.success(sendResult.message || "Verification code sent to your phone via SMS.");
+      }
 
       setStep("otp");
       setCooldown(60);
@@ -73,6 +88,7 @@ export function LoginPage() {
       const msg = err?.response?.data?.message || err?.message || "Failed to send OTP via SMS. Please try again.";
       setErrorMessage(msg);
       toast.error(msg);
+      resetFirebaseSession();
     } finally {
       setIsLoading(false);
     }
@@ -80,14 +96,20 @@ export function LoginPage() {
 
   const handleResendOtp = async () => {
     if (cooldown > 0 || isLoading) return;
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
 
     setIsLoading(true);
     setErrorMessage("");
+    resetFirebaseSession();
+
     try {
-      // API 4: Resend OTP
-      const res = await authApi.resendOtp(cleanPhone);
-      toast.success(res.message || "New verification code sent via SMS.");
+      if (HAS_FIREBASE_CONFIG) {
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+        toast.success(`New OTP sent — ${result.message}`);
+      } else {
+        const res = await authApi.resendOtp(clean10Digits);
+        toast.success(res.message || "New verification code sent via SMS.");
+      }
       setCooldown(60);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to resend verification code via SMS.";
@@ -98,13 +120,40 @@ export function LoginPage() {
     }
   };
 
+  const completeUserSession = (res: { accessToken: string; refreshToken?: string; user?: any }, cleanPhone: string) => {
+    setStorefrontSession({
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken || "",
+      customerId: Number(res.user?.id) || 1,
+      phoneNumber: res.user?.phoneNumber || `+91${cleanPhone}`,
+      name: res.user?.fullName || "Buyer",
+      email: res.user?.email || "",
+      roles: "buyer",
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    });
+
+    if (res.user) {
+      setAuthFromBackend(res.user, res.accessToken, res.refreshToken);
+    }
+
+    if (typeof window !== "undefined") {
+      if (res.accessToken) localStorage.setItem("accessToken", res.accessToken);
+      if (res.refreshToken) localStorage.setItem("refreshToken", res.refreshToken);
+      if (res.user) localStorage.setItem("user", JSON.stringify(res.user));
+    }
+
+    toast.success(`Welcome back, ${res.user?.fullName || "Buyer"}!`);
+    systemApi.saveFcmToken(`web-${Date.now()}`).catch(() => {});
+    navigate(redirectTarget, { replace: true });
+  };
+
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
     const cleanOtp = otp.trim();
 
-    if (cleanOtp.length < 4) {
-      setErrorMessage("Please enter the 6-digit OTP received");
+    if (cleanOtp.length < 6) {
+      setErrorMessage("Please enter the complete 6-digit OTP received");
       return;
     }
 
@@ -112,34 +161,45 @@ export function LoginPage() {
     setErrorMessage("");
 
     try {
-      if (isRegistered) {
-        // Flow B: Direct Buyer Login (API 6)
-        const loginRes = await authApi.login({
-          phoneNumber: cleanPhone,
-          otp: cleanOtp,
+      if (HAS_FIREBASE_CONFIG) {
+        // 1. Verify code with Firebase
+        const fbResult = await firebaseVerifyOtp(cleanOtp);
+
+        // 2. Call KFPCL Backend to issue session tokens
+        const loginRes = await authApi.firebaseLogin({
+          idToken: fbResult.idToken,
+          fcmToken: "",
+          fullName: `Buyer ${fbResult.phoneNumber.slice(-4) || clean10Digits.slice(-4)}`,
+          email: "",
         });
 
-        setAuthFromBackend(loginRes.user, loginRes.accessToken, loginRes.refreshToken);
-        toast.success(`Welcome back, ${loginRes.user.fullName || "Buyer"}!`);
+        completeUserSession(loginRes, clean10Digits);
+        return;
+      }
 
-        // Register FCM Web Token in background if configured (API 16)
-        systemApi.saveFcmToken(`web-${Date.now()}`).catch(() => {});
-
-        navigate(redirectTarget, { replace: true });
+      // Fallback: non-Firebase backend flow
+      if (isRegistered) {
+        const loginRes = await authApi.login({
+          phoneNumber: clean10Digits,
+          otp: cleanOtp,
+        });
+        completeUserSession(loginRes, clean10Digits);
       } else {
-        // Flow A: New Buyer Verify OTP (API 3)
-        const verifyRes = await authApi.verifyOtp(cleanPhone, cleanOtp);
+        const verifyRes = await authApi.verifyOtp(clean10Digits, cleanOtp);
 
         if (verifyRes.isRegistered && verifyRes.accessToken && verifyRes.refreshToken && verifyRes.user) {
-          // In case user was registered concurrently
-          setAuthFromBackend(verifyRes.user, verifyRes.accessToken, verifyRes.refreshToken);
-          toast.success(`Welcome back, ${verifyRes.user.fullName || "Buyer"}!`);
-          navigate(redirectTarget, { replace: true });
+          completeUserSession(
+            {
+              accessToken: verifyRes.accessToken,
+              refreshToken: verifyRes.refreshToken || "",
+              user: verifyRes.user,
+            },
+            clean10Digits
+          );
         } else if (verifyRes.verificationToken) {
-          // Unregistered Buyer: proceed to signup with verification token
           toast.info("Phone verified! Please complete your business registration details.");
           navigate(
-            `/register?phone=${encodeURIComponent(cleanPhone)}&token=${encodeURIComponent(
+            `/register?phone=${encodeURIComponent(clean10Digits)}&token=${encodeURIComponent(
               verifyRes.verificationToken
             )}&redirect=${encodeURIComponent(redirectTarget)}`
           );
@@ -158,6 +218,9 @@ export function LoginPage() {
 
   return (
     <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center px-4 py-12 bg-gradient-to-b from-[#F7F9F8] to-white">
+      {/* Invisible reCAPTCHA container for Firebase */}
+      <div id="recaptcha-container" />
+
       <div className="w-full max-w-md rounded-3xl border border-gray-200/90 bg-white p-7 sm:p-8 shadow-[0_20px_60px_rgba(10,22,40,0.08)]">
         {/* Brand Header */}
         <div className="text-center mb-6">
@@ -218,7 +281,7 @@ export function LoginPage() {
               {isLoading ? (
                 <>
                   <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Checking...</span>
+                  <span>Sending OTP...</span>
                 </>
               ) : (
                 <>
@@ -242,6 +305,7 @@ export function LoginPage() {
                     setStep("phone");
                     setOtp("");
                     setErrorMessage("");
+                    resetFirebaseSession();
                   }}
                   className="text-xs text-[#0A4D3C] font-semibold hover:underline"
                 >
@@ -281,13 +345,13 @@ export function LoginPage() {
             {isRegistered === false && (
               <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                <span>New buyer detected! Verifying OTP will unlock business onboarding.</span>
+                <span>New buyer detected! Verifying OTP will sign you in and unlock onboarding.</span>
               </div>
             )}
 
             <button
               type="submit"
-              disabled={isLoading || otp.trim().length < 4}
+              disabled={isLoading || otp.trim().length < 6}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A4D3C] py-3 text-sm font-bold text-white shadow-md shadow-[#0A4D3C]/20 transition hover:bg-[#0E5E4A] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
@@ -298,7 +362,7 @@ export function LoginPage() {
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>{isRegistered === false ? "Verify & Continue" : "Sign In"}</span>
+                  <span>Sign In</span>
                 </>
               )}
             </button>
