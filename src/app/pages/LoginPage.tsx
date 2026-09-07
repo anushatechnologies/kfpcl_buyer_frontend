@@ -32,6 +32,7 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [otpMethod, setOtpMethod] = useState<"firebase" | "backend">("firebase");
 
   // If already logged in, redirect
   useEffect(() => {
@@ -73,12 +74,21 @@ export function LoginPage() {
       setIsRegistered(checkResult.exists);
 
       if (HAS_FIREBASE_CONFIG) {
-        // ✅ Firebase Phone Auth — sends real OTP via SMS strictly to +91XXXXXXXXXX
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        toast.success(result.message);
+        try {
+          // ✅ Try Firebase Phone Auth first
+          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+          setOtpMethod("firebase");
+          toast.success(result.message);
+        } catch (fbErr: any) {
+          console.warn("Firebase Phone Auth failed, attempting SMS backend fallback:", fbErr);
+          const fallbackResult = await authApi.sendOtp(clean10Digits);
+          setOtpMethod("backend");
+          toast.success(fallbackResult.message || "Verification code sent via SMS gateway.");
+        }
       } else {
         // Fallback: backend OTP
         const sendResult = await authApi.sendOtp(clean10Digits);
+        setOtpMethod("backend");
         toast.success(sendResult.message || "Verification code sent to your phone via SMS.");
       }
 
@@ -103,9 +113,15 @@ export function LoginPage() {
     resetFirebaseSession();
 
     try {
-      if (HAS_FIREBASE_CONFIG) {
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        toast.success(`New OTP sent — ${result.message}`);
+      if (HAS_FIREBASE_CONFIG && otpMethod === "firebase") {
+        try {
+          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+          toast.success(`New OTP sent — ${result.message}`);
+        } catch (fbErr: any) {
+          const res = await authApi.resendOtp(clean10Digits);
+          setOtpMethod("backend");
+          toast.success(res.message || "New verification code sent via SMS.");
+        }
       } else {
         const res = await authApi.resendOtp(clean10Digits);
         toast.success(res.message || "New verification code sent via SMS.");
@@ -161,20 +177,56 @@ export function LoginPage() {
     setErrorMessage("");
 
     try {
-      if (HAS_FIREBASE_CONFIG) {
-        // 1. Verify code with Firebase
-        const fbResult = await firebaseVerifyOtp(cleanOtp);
+      if (otpMethod === "firebase" && HAS_FIREBASE_CONFIG) {
+        try {
+          // 1. Verify code with Firebase
+          const fbResult = await firebaseVerifyOtp(cleanOtp);
 
-        // 2. Call KFPCL Backend to issue session tokens
-        const loginRes = await authApi.firebaseLogin({
-          idToken: fbResult.idToken,
-          fcmToken: "",
-          fullName: `Buyer ${fbResult.phoneNumber.slice(-4) || clean10Digits.slice(-4)}`,
-          email: "",
-        });
+          // 2. Call KFPCL Backend to issue session tokens
+          const loginRes = await authApi.firebaseLogin({
+            idToken: fbResult.idToken,
+            fcmToken: "",
+            fullName: `Buyer ${fbResult.phoneNumber.slice(-4) || clean10Digits.slice(-4)}`,
+            email: "",
+          });
 
-        completeUserSession(loginRes, clean10Digits);
-        return;
+          completeUserSession(loginRes, clean10Digits);
+          return;
+        } catch (fbErr: any) {
+          if (!window.confirmationResult) {
+            // Try backend login/verify fallback
+            if (isRegistered) {
+              const loginRes = await authApi.login({
+                phoneNumber: clean10Digits,
+                otp: cleanOtp,
+              });
+              completeUserSession(loginRes, clean10Digits);
+              return;
+            } else {
+              const verifyRes = await authApi.verifyOtp(clean10Digits, cleanOtp);
+              if (verifyRes.isRegistered && verifyRes.accessToken && verifyRes.refreshToken && verifyRes.user) {
+                completeUserSession(
+                  {
+                    accessToken: verifyRes.accessToken,
+                    refreshToken: verifyRes.refreshToken || "",
+                    user: verifyRes.user,
+                  },
+                  clean10Digits
+                );
+                return;
+              } else if (verifyRes.verificationToken) {
+                toast.info("Phone verified! Please complete your business registration details.");
+                navigate(
+                  `/register?phone=${encodeURIComponent(clean10Digits)}&token=${encodeURIComponent(
+                    verifyRes.verificationToken
+                  )}&redirect=${encodeURIComponent(redirectTarget)}`
+                );
+                return;
+              }
+            }
+          }
+          throw fbErr;
+        }
       }
 
       // Fallback: non-Firebase backend flow

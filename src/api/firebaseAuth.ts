@@ -115,20 +115,51 @@ export const firebaseSendOtp = async (
     }
 
     const code: string = err?.code || "";
+    if (code === "auth/invalid-app-credential") {
+      const error: any = new Error(
+        "Firebase app verification failed (auth/invalid-app-credential). Ensure your domain is listed in Firebase Console -> Authentication -> Settings -> Authorized Domains."
+      );
+      error.code = code;
+      throw error;
+    }
+    if (code === "auth/unauthorized-domain") {
+      const error: any = new Error(
+        "This domain is not authorized in Firebase Authentication. Add it under Firebase Console -> Authentication -> Settings -> Authorized Domains."
+      );
+      error.code = code;
+      throw error;
+    }
+    if (code === "auth/operation-not-allowed") {
+      const error: any = new Error(
+        "Phone sign-in is not enabled in Firebase Authentication. Enable Phone provider in Firebase Console -> Authentication -> Sign-in method."
+      );
+      error.code = code;
+      throw error;
+    }
     if (code === "auth/invalid-phone-number") {
-      throw new Error("Invalid phone number format. Please enter a valid 10-digit number.");
+      const error: any = new Error("Invalid phone number format. Please enter a valid 10-digit number.");
+      error.code = code;
+      throw error;
     }
     if (code === "auth/too-many-requests") {
-      throw new Error("Too many attempts. Please wait a moment before requesting another OTP.");
+      const error: any = new Error("Too many attempts. Please wait a moment before requesting another OTP.");
+      error.code = code;
+      throw error;
     }
     if (code === "auth/captcha-check-failed") {
-      throw new Error("reCAPTCHA security check failed. Please refresh and try again.");
+      const error: any = new Error("reCAPTCHA security check failed. Please refresh and try again.");
+      error.code = code;
+      throw error;
     }
     if (code === "auth/network-request-failed") {
-      throw new Error("Network request failed. Please check your internet connection.");
+      const error: any = new Error("Network request failed. Please check your internet connection.");
+      error.code = code;
+      throw error;
     }
 
-    throw new Error(err?.message || "Failed to send OTP: " + (err?.message || err));
+    const customErr: any = new Error(err?.message || "Failed to send OTP: " + (err?.message || err));
+    customErr.code = code;
+    throw customErr;
   }
 };
 

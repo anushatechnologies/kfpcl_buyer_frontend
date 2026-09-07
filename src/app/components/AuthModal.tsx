@@ -54,6 +54,8 @@ export function AuthModal() {
   const [state, setState] = useState("Telangana");
   const [city, setCity] = useState("Hyderabad");
 
+  const [otpMethod, setOtpMethod] = useState<"firebase" | "backend">("firebase");
+
   // Reset modal state whenever opened
   useEffect(() => {
     if (isOpen) {
@@ -65,6 +67,7 @@ export function AuthModal() {
       setErrorMessage("");
       setIsLoading(false);
       setCooldown(0);
+      setOtpMethod("firebase");
       resetFirebaseSession();
     }
   }, [isOpen]);
@@ -78,7 +81,7 @@ export function AuthModal() {
     return () => clearInterval(interval);
   }, [cooldown]);
 
-  // ─── 1. Send OTP via Firebase ────────────────────────────────────────────────
+  // ─── 1. Send OTP ─────────────────────────────────────────────────────────────
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
@@ -96,25 +99,29 @@ export function AuthModal() {
       setIsRegistered(checkResult.exists);
 
       if (HAS_FIREBASE_CONFIG) {
-        // ✅ Firebase Phone Auth — sends real OTP via SMS strictly to +91XXXXXXXXXX
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        toast.success(result.message);
+        try {
+          // ✅ Try Firebase Phone Auth first
+          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+          setOtpMethod("firebase");
+          toast.success(result.message);
+        } catch (fbErr: any) {
+          console.warn("Firebase Phone Auth failed, attempting SMS backend fallback:", fbErr);
+          // Auto fallback to backend OTP
+          const fallbackResult = await authApi.sendOtp(clean10Digits);
+          setOtpMethod("backend");
+          toast.success(fallbackResult.message || "Verification code sent via SMS gateway.");
+        }
       } else {
         // Fallback: backend / local dev OTP (no Firebase config in env)
         const result = await authApi.sendOtp(clean10Digits);
+        setOtpMethod("backend");
         toast.success(result.message || "OTP sent to your phone.");
       }
 
       setStep("otp");
       setCooldown(60);
     } catch (err: any) {
-      const code: string = err?.code || "";
-      let msg = err?.message || "Failed to send OTP. Please try again.";
-
-      if (code === "auth/invalid-phone-number") msg = "Invalid phone number. Please check and retry.";
-      if (code === "auth/too-many-requests") msg = "Too many attempts. Please wait a moment and try again.";
-      if (code === "auth/captcha-check-failed") msg = "reCAPTCHA check failed. Please refresh and retry.";
-
+      const msg = err?.message || "Failed to send OTP. Please try again.";
       setErrorMessage(msg);
       toast.error(msg);
       resetFirebaseSession();
@@ -133,9 +140,15 @@ export function AuthModal() {
     resetFirebaseSession();
 
     try {
-      if (HAS_FIREBASE_CONFIG) {
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        toast.success(`New OTP sent — ${result.message}`);
+      if (HAS_FIREBASE_CONFIG && otpMethod === "firebase") {
+        try {
+          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+          toast.success(`New OTP sent — ${result.message}`);
+        } catch (fbErr: any) {
+          const fallbackResult = await authApi.resendOtp(clean10Digits);
+          setOtpMethod("backend");
+          toast.success(fallbackResult.message || "New OTP sent via SMS gateway.");
+        }
       } else {
         const result = await authApi.resendOtp(clean10Digits);
         toast.success(result.message || "New OTP sent.");
@@ -153,7 +166,7 @@ export function AuthModal() {
   // ─── 3. Verify OTP ──────────────────────────────────────────────────────────
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
+    const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
     const cleanOtp = otp.trim();
 
     if (cleanOtp.length < 6) {
@@ -165,25 +178,54 @@ export function AuthModal() {
     setErrorMessage("");
 
     try {
-      if (HAS_FIREBASE_CONFIG) {
-        // ✅ Verify OTP with Firebase — only Firebase validates the code
-        const fbResult = await firebaseVerifyOtp(cleanOtp);
-        const loginRes = await authApi.firebaseLogin({
-          idToken: fbResult.idToken,
-          fcmToken: "",
-          fullName: `Buyer ${fbResult.phoneNumber.slice(-4) || cleanPhone.slice(-4)}`,
-          email: "",
-        });
-        completeSignIn(loginRes, cleanPhone);
-        return;
-
+      if (otpMethod === "firebase" && HAS_FIREBASE_CONFIG) {
+        try {
+          // ✅ Verify OTP with Firebase
+          const fbResult = await firebaseVerifyOtp(cleanOtp);
+          const loginRes = await authApi.firebaseLogin({
+            idToken: fbResult.idToken,
+            fcmToken: "",
+            fullName: `Buyer ${fbResult.phoneNumber.slice(-4) || clean10Digits.slice(-4)}`,
+            email: "",
+          });
+          completeSignIn(loginRes, clean10Digits);
+          return;
+        } catch (fbErr: any) {
+          // If Firebase confirmation is missing or invalid, try backend verification as fallback
+          if (!window.confirmationResult) {
+            if (isRegistered) {
+              const loginRes = await authApi.login({ phoneNumber: clean10Digits, otp: cleanOtp });
+              completeSignIn(loginRes, clean10Digits);
+              return;
+            } else {
+              const verifyRes = await authApi.verifyOtp(clean10Digits, cleanOtp);
+              if (verifyRes.isRegistered && verifyRes.accessToken && verifyRes.user) {
+                completeSignIn(
+                  {
+                    accessToken: verifyRes.accessToken,
+                    refreshToken: verifyRes.refreshToken || "",
+                    user: verifyRes.user,
+                  },
+                  clean10Digits
+                );
+                return;
+              } else if (verifyRes.verificationToken) {
+                setVerificationToken(verifyRes.verificationToken);
+                setStep("details");
+                toast.info("Phone verified! Please complete your profile.");
+                return;
+              }
+            }
+          }
+          throw fbErr;
+        }
       } else {
         // ── Fallback: non-Firebase OTP verify ─────────────────────────────────
         if (isRegistered) {
-          const loginRes = await authApi.login({ phoneNumber: cleanPhone, otp: cleanOtp });
-          completeSignIn(loginRes, cleanPhone);
+          const loginRes = await authApi.login({ phoneNumber: clean10Digits, otp: cleanOtp });
+          completeSignIn(loginRes, clean10Digits);
         } else {
-          const verifyRes = await authApi.verifyOtp(cleanPhone, cleanOtp);
+          const verifyRes = await authApi.verifyOtp(clean10Digits, cleanOtp);
           if (verifyRes.isRegistered && verifyRes.accessToken && verifyRes.user) {
             completeSignIn(
               {
@@ -191,7 +233,7 @@ export function AuthModal() {
                 refreshToken: verifyRes.refreshToken || "",
                 user: verifyRes.user,
               },
-              cleanPhone
+              clean10Digits
             );
           } else if (verifyRes.verificationToken) {
             setVerificationToken(verifyRes.verificationToken);
