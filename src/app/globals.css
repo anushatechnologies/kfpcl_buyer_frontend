@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-display: 'Outfit', system-ui, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #f8fafc;
+    color: #0f172a;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+}
+
+@layer components {
+  /* ── Buttons ─────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
+           bg-brand-600 text-white text-sm font-semibold
+           hover:bg-brand-700 active:scale-[0.98]
+           transition-all duration-150 shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
+           border border-dark-200 bg-white text-dark-700 text-sm font-semibold
+           hover:bg-dark-50 hover:border-dark-300 active:scale-[0.98]
+           transition-all duration-150;
+  }
+
+  .btn-outline-green {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
+           border border-brand-600 text-brand-700 text-sm font-semibold
+           hover:bg-brand-50 active:scale-[0.98]
+           transition-all duration-150;
+  }
+
+  /* ── Cards ───────────────────────────────────── */
+  .card {
+    @apply bg-white rounded-xl border border-dark-200/80 shadow-card
+           transition-shadow duration-200;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200;
+  }
+
+  /* ── Badges ──────────────────────────────────── */
+  .badge-green {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+           bg-brand-100 text-brand-700 text-xs font-semibold;
+  }
+
+  .badge-orange {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+           bg-accent-100 text-accent-700 text-xs font-semibold;
+  }
+
+  .badge-gray {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+           bg-dark-100 text-dark-600 text-xs font-semibold;
+  }
+
+  /* ── Form ────────────────────────────────────── */
+  .form-input {
+    @apply w-full h-11 px-4 text-sm rounded-lg
+           border border-dark-200 bg-white text-dark-800 placeholder-dark-400
+           focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500
+           transition duration-150;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-dark-700 mb-1.5;
+  }
+
+  .form-error {
+    @apply text-xs text-red-600 mt-1;
+  }
+
+  /* ── Section wrapper ─────────────────────────── */
+  .section {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 lg:py-16;
+  }
+}
+
+@layer utilities {
+  .text-gradient-green {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-brand {
+    background: linear-gradient(135deg, #15803d, #f97316);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glass {
+    @apply bg-white/80 backdrop-blur-sm border border-white/60;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
