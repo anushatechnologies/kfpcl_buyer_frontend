@@ -32,6 +32,7 @@ export const router = createBrowserRouter([
       { path: "checkout", Component: Checkout },
       { path: "customer-access/new", Component: CustomerSignup },
       { path: "register", Component: CustomerSignup },
+      { path: "signup", Component: CustomerSignup },
       { path: "login", Component: LoginPage },
       { path: "account", Component: Account },
       { path: "profile", Component: Account },

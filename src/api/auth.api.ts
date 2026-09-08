@@ -19,6 +19,7 @@ export interface AuthUser {
 
 export interface CheckPhoneResponse {
   exists: boolean;
+  isRegistered?: boolean;
 }
 
 export interface SendOtpResponse {
@@ -67,6 +68,11 @@ export interface FirebaseLoginPayload {
   idToken: string;
   fullName?: string;
   fcmToken?: string;
+  email?: string;
+  companyName?: string;
+  businessType?: string;
+  state?: string;
+  city?: string;
 }
 
 export interface AuthResponse {
@@ -183,14 +189,18 @@ export const authApi = {
     try {
       const response = await apiClient.get<any>(`/api/auth/check-phone/${cleanPhone}`);
       const data = response.data?.data || response.data;
+      const registered = Boolean(data?.isRegistered ?? data?.exists);
       return {
-        exists: Boolean(data?.exists),
+        exists: registered,
+        isRegistered: registered,
       };
     } catch (err: any) {
       if (isMissingEndpointError(err)) {
         const users = getRegisteredUsers();
+        const registered = Boolean(users[cleanPhone]);
         return {
-          exists: Boolean(users[cleanPhone]),
+          exists: registered,
+          isRegistered: registered,
         };
       }
       throw err;
@@ -439,6 +449,11 @@ export const authApi = {
       idToken: payload.idToken,
       fullName: payload.fullName || "",
       fcmToken: payload.fcmToken || "",
+      email: payload.email || "",
+      companyName: payload.companyName || "",
+      businessType: payload.businessType || "",
+      state: payload.state || "",
+      city: payload.city || "",
     });
     const data = response.data?.data || response.data;
     const accessToken = data?.accessToken || "";

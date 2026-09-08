@@ -122,10 +122,10 @@ export function CustomerSignup() {
 
     try {
       // API 1: Check phone
-      const checkRes = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false }));
-      if (checkRes.exists) {
+      const checkRes = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false, isRegistered: false }));
+      if (checkRes.isRegistered || checkRes.exists) {
         toast.info("This phone number is already registered. Redirecting to login...");
-        navigate(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
+        navigate(`/login?phone=${encodeURIComponent(clean10Digits)}&redirect=${encodeURIComponent(redirectTarget)}`);
         return;
       }
 
@@ -222,10 +222,15 @@ export function CustomerSignup() {
     setErrorMessage("");
 
     try {
+      // 1. Check if phone is already registered before deciding navigation
+      const checkRes = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false, isRegistered: false }));
+      const isAlreadyRegistered = Boolean(checkRes.isRegistered ?? checkRes.exists);
+
       if ((otpMethod === "firebase" || (typeof window !== "undefined" && (window as any).confirmationResult)) && HAS_FIREBASE_CONFIG) {
         const fbResult = await firebaseVerifyOtp(cleanOtp);
-        // If already registered, firebase-login logs them in immediately
-        try {
+
+        // If already registered, log in immediately and navigate to destination - DO NOT send to signup details
+        if (isAlreadyRegistered) {
           const loginRes = await authApi.firebaseLogin({
             idToken: fbResult.idToken,
             fullName: "",
@@ -237,11 +242,9 @@ export function CustomerSignup() {
             navigate(redirectTarget, { replace: true });
             return;
           }
-        } catch (_) {
-          // New buyer, proceed to business profile step
         }
 
-        // Use idToken as verification credential for signup
+        // New buyer: save Firebase ID token for registration step
         setVerificationToken(fbResult.idToken);
         toast.success("Phone verified successfully! Please complete your profile.");
         setStep("details");
@@ -251,11 +254,23 @@ export function CustomerSignup() {
       // Fallback: non-Firebase backend
       const res = await authApi.verifyOtp(clean10Digits, cleanOtp);
 
-      if (res.isRegistered && res.accessToken && res.refreshToken && res.user) {
+      if ((res.isRegistered || isAlreadyRegistered) && res.accessToken && res.refreshToken && res.user) {
         setAuthFromBackend(res.user, res.accessToken, res.refreshToken);
         toast.success(`Welcome back, ${res.user.fullName || "Buyer"}!`);
         navigate(redirectTarget, { replace: true });
         return;
+      }
+
+      if (res.isRegistered || isAlreadyRegistered) {
+        try {
+          const loginRes = await authApi.login({ phoneNumber: clean10Digits, otp: cleanOtp });
+          if (loginRes.accessToken && loginRes.user) {
+            setAuthFromBackend(loginRes.user, loginRes.accessToken, loginRes.refreshToken || "");
+            toast.success(`Welcome back, ${loginRes.user.fullName || "Buyer"}!`);
+            navigate(redirectTarget, { replace: true });
+            return;
+          }
+        } catch (_) {}
       }
 
       if (res.verificationToken) {
@@ -296,7 +311,30 @@ export function CustomerSignup() {
     try {
       const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
 
-      // API 5: Buyer Sign Up
+      // Check if the token is a Firebase ID Token (JWT with 3 parts or firebase OTP method)
+      const isFirebaseToken = otpMethod === "firebase" || verificationToken.split(".").length === 3;
+
+      if (isFirebaseToken && verificationToken) {
+        // Call /api/auth/firebase-login which registers new buyer and returns session tokens
+        const res = await authApi.firebaseLogin({
+          idToken: verificationToken,
+          fullName: fullName.trim(),
+          email: email.trim(),
+          companyName: companyName.trim(),
+          businessType,
+          state,
+          city: city.trim(),
+          fcmToken: `web-${Date.now()}`,
+        });
+
+        setAuthFromBackend(res.user, res.accessToken, res.refreshToken);
+        toast.success("Registration completed! Welcome to KFPCL Exports.");
+        systemApi.saveFcmToken(`web-${Date.now()}`).catch(() => {});
+        navigate(redirectTarget, { replace: true });
+        return;
+      }
+
+      // API 5: Non-Firebase Buyer Sign Up with backend temp verification token
       const res = await authApi.signup({
         phoneNumber: cleanPhone,
         verificationToken,
