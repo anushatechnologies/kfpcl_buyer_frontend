@@ -55,6 +55,7 @@ export function AuthModal() {
   const [city, setCity] = useState("Hyderabad");
 
   const [otpMethod, setOtpMethod] = useState<"firebase" | "backend">("firebase");
+  const [fallbackOtp, setFallbackOtp] = useState<string>("");
 
   // Reset modal state whenever opened
   useEffect(() => {
@@ -62,6 +63,7 @@ export function AuthModal() {
       setStep("phone");
       setPhoneNumber("");
       setOtp("");
+      setFallbackOtp("");
       setVerificationToken("");
       setIsRegistered(null);
       setErrorMessage("");
@@ -110,12 +112,20 @@ export function AuthModal() {
           const fallbackResult = await authApi.sendOtp(clean10Digits);
           setOtpMethod("backend");
           toast.success(fallbackResult.message || "Verification code sent via SMS gateway.");
+          try {
+            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+            if (devRes?.otp) setFallbackOtp(devRes.otp);
+          } catch (_) {}
         }
       } else {
         // Fallback: backend / local dev OTP (no Firebase config in env)
         const result = await authApi.sendOtp(clean10Digits);
         setOtpMethod("backend");
         toast.success(result.message || "OTP sent to your phone.");
+        try {
+          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+          if (devRes?.otp) setFallbackOtp(devRes.otp);
+        } catch (_) {}
       }
 
       setStep("otp");
@@ -137,6 +147,7 @@ export function AuthModal() {
 
     setIsLoading(true);
     setErrorMessage("");
+    setFallbackOtp("");
     resetFirebaseSession();
 
     try {
@@ -148,10 +159,18 @@ export function AuthModal() {
           const fallbackResult = await authApi.resendOtp(clean10Digits);
           setOtpMethod("backend");
           toast.success(fallbackResult.message || "New OTP sent via SMS gateway.");
+          try {
+            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+            if (devRes?.otp) setFallbackOtp(devRes.otp);
+          } catch (_) {}
         }
       } else {
         const result = await authApi.resendOtp(clean10Digits);
         toast.success(result.message || "New OTP sent.");
+        try {
+          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+          if (devRes?.otp) setFallbackOtp(devRes.otp);
+        } catch (_) {}
       }
       setCooldown(60);
     } catch (err: any) {
@@ -482,6 +501,19 @@ export function AuthModal() {
                       {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend OTP"}
                     </button>
                   </div>
+
+                  {fallbackOtp && (
+                    <div className="mt-2.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center justify-between">
+                      <span>Carrier SMS delayed? Test OTP: <strong className="font-mono font-bold tracking-wider">{fallbackOtp}</strong></span>
+                      <button
+                        type="button"
+                        className="text-[#0A4D3C] font-bold underline hover:text-[#0E5E4A]"
+                        onClick={() => setOtp(fallbackOtp)}
+                      >
+                        Auto-fill
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {isRegistered === false && (

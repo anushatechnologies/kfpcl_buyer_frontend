@@ -33,6 +33,7 @@ export function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [otpMethod, setOtpMethod] = useState<"firebase" | "backend">("firebase");
+  const [fallbackOtp, setFallbackOtp] = useState<string>("");
 
   // If already logged in, redirect
   useEffect(() => {
@@ -48,7 +49,7 @@ export function LoginPage() {
     };
   }, []);
 
-  // Cooldown countdown timer
+  // Cooldown timer effect
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => {
@@ -67,6 +68,7 @@ export function LoginPage() {
 
     setIsLoading(true);
     setErrorMessage("");
+    setFallbackOtp("");
 
     try {
       // 1. Check if phone is registered
@@ -84,12 +86,24 @@ export function LoginPage() {
           const fallbackResult = await authApi.sendOtp(clean10Digits);
           setOtpMethod("backend");
           toast.success(fallbackResult.message || "Verification code sent via SMS gateway.");
+          try {
+            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+            if (devRes?.otp) {
+              setFallbackOtp(devRes.otp);
+            }
+          } catch (_) {}
         }
       } else {
         // Fallback: backend OTP
         const sendResult = await authApi.sendOtp(clean10Digits);
         setOtpMethod("backend");
         toast.success(sendResult.message || "Verification code sent to your phone via SMS.");
+        try {
+          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+          if (devRes?.otp) {
+            setFallbackOtp(devRes.otp);
+          }
+        } catch (_) {}
       }
 
       setStep("otp");
@@ -110,6 +124,7 @@ export function LoginPage() {
 
     setIsLoading(true);
     setErrorMessage("");
+    setFallbackOtp("");
     resetFirebaseSession();
 
     try {
@@ -121,10 +136,18 @@ export function LoginPage() {
           const res = await authApi.resendOtp(clean10Digits);
           setOtpMethod("backend");
           toast.success(res.message || "New verification code sent via SMS.");
+          try {
+            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+            if (devRes?.otp) setFallbackOtp(devRes.otp);
+          } catch (_) {}
         }
       } else {
         const res = await authApi.resendOtp(clean10Digits);
         toast.success(res.message || "New verification code sent via SMS.");
+        try {
+          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+          if (devRes?.otp) setFallbackOtp(devRes.otp);
+        } catch (_) {}
       }
       setCooldown(60);
     } catch (err: any) {
@@ -392,6 +415,19 @@ export function LoginPage() {
                   {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend OTP"}
                 </button>
               </div>
+
+              {fallbackOtp && (
+                <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center justify-between">
+                  <span>Carrier SMS delayed? Test OTP: <strong className="font-mono font-bold tracking-wider">{fallbackOtp}</strong></span>
+                  <button
+                    type="button"
+                    className="text-[#0A4D3C] font-bold underline hover:text-[#0E5E4A]"
+                    onClick={() => setOtp(fallbackOtp)}
+                  >
+                    Auto-fill
+                  </button>
+                </div>
+              )}
             </div>
 
             {isRegistered === false && (

@@ -1,0 +1,50 @@
+name: Deploy KFPCL Buyer Frontend to GoDaddy cPanel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  build-and-deploy:
+    name: Build React App and Deploy to cPanel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm install
+
+      - name: 🏗️ Build Production Bundle
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://api.kfpclexports.com/api' }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://api.kfpclexports.com/api' }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'AIzaSyBa1Arilraettuqi_8IA0v4Qae0mwrkYjQ' }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'anushabazaar-2288e.firebaseapp.com' }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'anushabazaar-2288e' }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:64875938387:web:0ae8c08c931e2dabba7ca6' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '64875938387' }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'anushabazaar-2288e.firebasestorage.app' }}
+          VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL || 'https://anushabazaar-2288e-default-rtdb.firebaseio.com' }}
+
+      - name: 🚀 Sync and Deploy to GoDaddy cPanel via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_TARGET_DIR || './' }}
+          local-dir: './dist/'
+          protocol: ftp
+          port: ${{ secrets.FTP_PORT || 21 }}
+          dangerous-clean-slate: false

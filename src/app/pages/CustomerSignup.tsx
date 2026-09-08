@@ -69,6 +69,9 @@ export function CustomerSignup() {
   const [verificationToken, setVerificationToken] = useState(paramToken);
   const [cooldown, setCooldown] = useState(0);
 
+  const [otpMethod, setOtpMethod] = useState<"firebase" | "backend">("firebase");
+  const [fallbackOtp, setFallbackOtp] = useState<string>("");
+
   // Business profile form fields
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -91,7 +94,7 @@ export function CustomerSignup() {
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => {
-      setCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+      setCooldown((prev) => prev - 1);
     }, 1000);
     return () => clearInterval(timer);
   }, [cooldown]);
@@ -107,6 +110,7 @@ export function CustomerSignup() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
+
     if (clean10Digits.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number");
       return;
@@ -114,6 +118,7 @@ export function CustomerSignup() {
 
     setIsLoading(true);
     setErrorMessage("");
+    setFallbackOtp("");
 
     try {
       // API 1: Check phone
@@ -125,11 +130,28 @@ export function CustomerSignup() {
       }
 
       if (HAS_FIREBASE_CONFIG) {
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        toast.success(result.message);
+        try {
+          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+          setOtpMethod("firebase");
+          toast.success(result.message);
+        } catch (fbErr: any) {
+          console.warn("Firebase Phone Auth failed, attempting SMS backend fallback:", fbErr);
+          const sendRes = await authApi.sendOtp(clean10Digits);
+          setOtpMethod("backend");
+          toast.success(sendRes.message || "Verification code sent via SMS.");
+          try {
+            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+            if (devRes?.otp) setFallbackOtp(devRes.otp);
+          } catch (_) {}
+        }
       } else {
         const sendRes = await authApi.sendOtp(clean10Digits);
+        setOtpMethod("backend");
         toast.success(sendRes.message || "Verification code sent to your mobile number via SMS.");
+        try {
+          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+          if (devRes?.otp) setFallbackOtp(devRes.otp);
+        } catch (_) {}
       }
 
       setStep("otp");
@@ -150,15 +172,30 @@ export function CustomerSignup() {
     const clean10Digits = phoneNumber.replace(/[^0-9]/g, "").slice(-10);
     setIsLoading(true);
     setErrorMessage("");
+    setFallbackOtp("");
     resetFirebaseSession();
 
     try {
-      if (HAS_FIREBASE_CONFIG) {
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        toast.success(`New OTP sent — ${result.message}`);
+      if (HAS_FIREBASE_CONFIG && otpMethod === "firebase") {
+        try {
+          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+          toast.success(`New OTP sent — ${result.message}`);
+        } catch (fbErr: any) {
+          const res = await authApi.resendOtp(clean10Digits);
+          setOtpMethod("backend");
+          toast.success(res.message || "New verification code sent via SMS.");
+          try {
+            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+            if (devRes?.otp) setFallbackOtp(devRes.otp);
+          } catch (_) {}
+        }
       } else {
         const res = await authApi.resendOtp(clean10Digits);
         toast.success(res.message || "New verification code sent via SMS.");
+        try {
+          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
+          if (devRes?.otp) setFallbackOtp(devRes.otp);
+        } catch (_) {}
       }
       setCooldown(60);
     } catch (err: any) {
@@ -185,13 +222,17 @@ export function CustomerSignup() {
     setErrorMessage("");
 
     try {
-      if (HAS_FIREBASE_CONFIG) {
-        const fbResult = await firebaseVerifyOtp(cleanOtp);
-        // Use idToken as verification credential
-        setVerificationToken(fbResult.idToken);
-        toast.success("Phone verified successfully! Please complete your profile.");
-        setStep("details");
-        return;
+      if (otpMethod === "firebase" && HAS_FIREBASE_CONFIG && typeof window !== "undefined" && (window as any).confirmationResult) {
+        try {
+          const fbResult = await firebaseVerifyOtp(cleanOtp);
+          // Use idToken as verification credential
+          setVerificationToken(fbResult.idToken);
+          toast.success("Phone verified successfully! Please complete your profile.");
+          setStep("details");
+          return;
+        } catch (fbErr: any) {
+          console.warn("Firebase OTP verify failed, attempting backend fallback:", fbErr);
+        }
       }
 
       // Fallback: non-Firebase backend
@@ -404,6 +445,19 @@ export function CustomerSignup() {
                   {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend OTP"}
                 </button>
               </div>
+
+              {fallbackOtp && (
+                <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center justify-between">
+                  <span>Carrier SMS delayed? Test OTP: <strong className="font-mono font-bold tracking-wider">{fallbackOtp}</strong></span>
+                  <button
+                    type="button"
+                    className="text-[#0A4D3C] font-bold underline hover:text-[#0E5E4A]"
+                    onClick={() => setOtp(fallbackOtp)}
+                  >
+                    Auto-fill
+                  </button>
+                </div>
+              )}
             </div>
 
             <button

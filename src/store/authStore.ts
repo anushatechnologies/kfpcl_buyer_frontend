@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '@/types/user';
-import { writeStoredSession, clearStoredSession } from '@/app/lib/session';
+import { writeStoredSession, clearStoredSession, readStoredSession } from '@/app/lib/session';
 
 export interface AuthStore {
   user: User | null;
@@ -41,16 +41,19 @@ export const useAuthStore = create<AuthStore>()(
               localStorage.setItem('kfpcl_user_phone', user.phone);
             }
 
-            writeStoredSession({
-              accessToken: token,
-              refreshToken: refToken || undefined,
-              customerId: Number(user.id) || 1,
-              phoneNumber: user.phone || '',
-              name: user.name,
-              email: user.email,
-              roles: user.role,
-              expiresAt: Date.now() + 15 * 60 * 1000,
-            });
+            const currentSession = readStoredSession();
+            if (!currentSession || currentSession.accessToken !== token) {
+              writeStoredSession({
+                accessToken: token,
+                refreshToken: refToken || undefined,
+                customerId: Number(user.id) || 1,
+                phoneNumber: user.phone || '',
+                name: user.name,
+                email: user.email,
+                roles: user.role,
+                expiresAt: Date.now() + 15 * 60 * 1000,
+              });
+            }
           } catch (e) {
             console.error('Session sync error:', e);
           }

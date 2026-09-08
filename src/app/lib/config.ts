@@ -16,14 +16,14 @@ export const SHARE_URL = trimTrailingSlash(
 );
 
 export const FIREBASE_CONFIG = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBa1Arilraettuqi_8IA0v4Qae0mwrkYjQ",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "anushabazaar-2288e.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "anushabazaar-2288e",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:64875938387:web:0ae8c08c931e2dabba7ca6",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "64875938387",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "anushabazaar-2288e.firebasestorage.app",
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://anushabazaar-2288e-default-rtdb.firebaseio.com",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-HP45RKD0BT",
 };
 
 export const HAS_FIREBASE_CONFIG = Boolean(

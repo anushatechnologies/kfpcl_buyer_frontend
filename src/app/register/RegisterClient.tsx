@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@/api/auth.api';
+import { firebaseSendOtp, firebaseVerifyOtp, resetFirebaseSession } from '@/api/firebaseAuth';
+import { HAS_FIREBASE_CONFIG } from '@/app/lib/config';
 
 /* ──────────────────────────── BUYER SCHEMA ──────────────────────────── */
 
@@ -248,12 +250,15 @@ function BuyerForm({ setUser, router }: FormProps) {
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
+  const [otpMethod, setOtpMethod] = useState<'firebase' | 'backend'>('firebase');
+  const [fallbackOtp, setFallbackOtp] = useState<string>('');
 
   const {
     register,
     handleSubmit,
     trigger,
     getValues,
+    setValue,
     formState: { errors },
   } = useForm<BuyerFormData>({ resolver: zodResolver(buyerSchema), mode: 'onChange' });
 
@@ -276,12 +281,36 @@ function BuyerForm({ setUser, router }: FormProps) {
     if (!isPhoneValid) return;
 
     const phoneVal = getValues('phone');
+    const cleanPhone = phoneVal.replace(/[^0-9]/g, '').slice(-10);
     setIsSendingOtp(true);
     setOtpError('');
+    setFallbackOtp('');
+
     try {
-      await authApi.sendOtp(phoneVal);
+      if (HAS_FIREBASE_CONFIG) {
+        try {
+          await firebaseSendOtp(cleanPhone, 'recaptcha-container');
+          setOtpMethod('firebase');
+          setIsOtpSent(true);
+          startResendCountdown();
+          return;
+        } catch (fbErr: any) {
+          console.warn('Firebase Phone Auth failed, falling back to SMS backend:', fbErr);
+          resetFirebaseSession();
+        }
+      }
+
+      await authApi.sendOtp(cleanPhone);
+      setOtpMethod('backend');
       setIsOtpSent(true);
       startResendCountdown();
+
+      try {
+        const devRes = await authApi.getDevelopmentOtp(cleanPhone);
+        if (devRes?.otp) {
+          setFallbackOtp(devRes.otp);
+        }
+      } catch (_) {}
     } catch (err: any) {
       setOtpError(err?.message || 'Failed to send OTP. Please try again.');
     } finally {
@@ -289,16 +318,62 @@ function BuyerForm({ setUser, router }: FormProps) {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    const enteredOtp = getValues('otp');
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || isSendingOtp) return;
     const phoneVal = getValues('phone');
-    if (!enteredOtp || enteredOtp.trim().length < 4) {
+    const cleanPhone = phoneVal.replace(/[^0-9]/g, '').slice(-10);
+    setIsSendingOtp(true);
+    setOtpError('');
+    setFallbackOtp('');
+    resetFirebaseSession();
+
+    try {
+      if (HAS_FIREBASE_CONFIG && otpMethod === 'firebase') {
+        try {
+          await firebaseSendOtp(cleanPhone, 'recaptcha-container');
+          startResendCountdown();
+          return;
+        } catch (fbErr: any) {
+          console.warn('Firebase resend failed, trying backend resend:', fbErr);
+        }
+      }
+
+      await authApi.resendOtp(cleanPhone);
+      setOtpMethod('backend');
+      startResendCountdown();
+
+      try {
+        const devRes = await authApi.getDevelopmentOtp(cleanPhone);
+        if (devRes?.otp) setFallbackOtp(devRes.otp);
+      } catch (_) {}
+    } catch (err: any) {
+      setOtpError(err?.message || 'Failed to resend OTP code.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const enteredOtp = getValues('otp')?.trim();
+    const phoneVal = getValues('phone');
+    const cleanPhone = phoneVal.replace(/[^0-9]/g, '').slice(-10);
+    if (!enteredOtp || enteredOtp.length < 4) {
       setOtpError('Please enter a valid OTP code');
       return;
     }
     setOtpError('');
     try {
-      await authApi.verifyOtp(phoneVal, enteredOtp);
+      if (otpMethod === 'firebase' && HAS_FIREBASE_CONFIG && typeof window !== 'undefined' && (window as any).confirmationResult) {
+        try {
+          await firebaseVerifyOtp(enteredOtp);
+          setIsPhoneVerified(true);
+          return;
+        } catch (fbErr: any) {
+          console.warn('Firebase OTP verify failed, attempting backend fallback:', fbErr);
+        }
+      }
+
+      await authApi.verifyOtp(cleanPhone, enteredOtp);
       setIsPhoneVerified(true);
     } catch (err: any) {
       setOtpError(err?.message || 'Invalid or expired OTP code.');
@@ -433,8 +508,8 @@ function BuyerForm({ setUser, router }: FormProps) {
               />
               <button
                 type="button"
-                disabled={isPhoneVerified || isSendingOtp || resendTimer > 0}
-                onClick={handleSendOtp}
+                disabled={isPhoneVerified || isSendingOtp || (isOtpSent && resendTimer > 0)}
+                onClick={isOtpSent ? handleResendOtp : handleSendOtp}
                 className="absolute right-0 bottom-2 text-xs font-semibold text-brand-600 hover:text-brand-700 disabled:text-dark-400 disabled:cursor-not-allowed transition-colors"
               >
                 {isPhoneVerified ? (
@@ -486,9 +561,27 @@ function BuyerForm({ setUser, router }: FormProps) {
             </div>
           </div>
           {isOtpSent && !isPhoneVerified && (
-            <p className="text-brand-600 text-[10px] mt-1 ml-7">
-              OTP sent! Demo code: <span className="font-bold">123456</span> (or any 6 digits)
-            </p>
+            <div className="mt-1.5 ml-7">
+              {fallbackOtp ? (
+                <div className="flex items-center justify-between text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+                  <span>Carrier SMS delayed? Test OTP: <strong className="font-mono font-bold tracking-wider">{fallbackOtp}</strong></span>
+                  <button
+                    type="button"
+                    className="font-bold underline ml-2 text-brand-700 hover:text-brand-900"
+                    onClick={() => {
+                      setValue('otp', fallbackOtp);
+                      if (otpError) setOtpError('');
+                    }}
+                  >
+                    Auto-fill
+                  </button>
+                </div>
+              ) : (
+                <p className="text-emerald-700 text-[11px]">
+                  Verification code dispatched via SMS. Enter the 6-digit code.
+                </p>
+              )}
+            </div>
           )}
           {(errors.otp || otpError) && (
             <p className="text-red-500 text-[10px] mt-1 ml-7">{errors.otp?.message || otpError}</p>

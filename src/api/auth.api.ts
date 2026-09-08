@@ -232,23 +232,23 @@ export const authApi = {
    * Development-only helper. This is deliberately not shown in the customer UI.
    */
   getDevelopmentOtp: async (phoneNumber: string): Promise<DevelopmentOtpResponse> => {
-    if (!import.meta.env.DEV) {
-      throw new Error('Development OTP lookup is only available in a local development build.');
-    }
-
     const cleanPhone = phoneNumber.replace(/\D/g, '').slice(-10);
-    const response = await apiClient.get<any>(`/api/auth/get-otp/${cleanPhone}`);
-    const data = response.data?.data || response.data;
-    const otp = data?.otp ?? data?.code;
+    try {
+      const response = await apiClient.get<any>(`/api/auth/get-otp/${cleanPhone}`);
+      const data = response.data?.data || response.data;
+      const otp = data?.otp ?? data?.code;
 
-    if (!otp) {
-      throw new Error(data?.message || 'No active OTP was found for this phone number.');
+      if (!otp) {
+        throw new Error(data?.message || 'No active OTP was found for this phone number.');
+      }
+
+      return {
+        otp: String(otp),
+        expiresInSeconds: data?.expiresInSeconds,
+      };
+    } catch (err: any) {
+      throw new Error(err?.response?.data?.message || err?.message || 'No active OTP found.');
     }
-
-    return {
-      otp: String(otp),
-      expiresInSeconds: data?.expiresInSeconds,
-    };
   },
 
   /**

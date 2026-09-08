@@ -26,47 +26,40 @@ declare global {
  */
 export const setupRecaptcha = (containerId: string = "recaptcha-container"): RecaptchaVerifier => {
   const auth: Auth = getFirebaseAuthInstance();
-
-  // Clear previous verifier instance if it exists
+  // Clear previous verifier
   if (typeof window !== "undefined" && window.recaptchaVerifier) {
     try {
       window.recaptchaVerifier.clear();
-    } catch (e) {
-      console.warn("Could not clear previous recaptcha", e);
-    }
+    } catch (_) {}
     window.recaptchaVerifier = null;
   }
-
-  // Ensure container element is clean in the DOM
+  // Replace container element so grecaptcha treats it as a brand new element
   if (typeof document !== "undefined") {
-    let container = document.getElementById(containerId);
-    if (!container) {
-      container = document.createElement("div");
+    const existing = document.getElementById(containerId);
+    if (existing && existing.parentNode) {
+      const freshContainer = document.createElement("div");
+      freshContainer.id = containerId;
+      freshContainer.style.display = "none";
+      existing.parentNode.replaceChild(freshContainer, existing);
+    } else if (!existing) {
+      const container = document.createElement("div");
       container.id = containerId;
       container.style.display = "none";
       document.body.appendChild(container);
-    } else {
-      container.innerHTML = "";
     }
   }
-
   const verifier = new RecaptchaVerifier(auth, containerId, {
     size: "invisible",
-    callback: () => {
-      // reCAPTCHA solved
-    },
+    callback: () => {},
     "expired-callback": () => {
-      console.warn("reCAPTCHA expired");
       if (typeof window !== "undefined") {
         window.recaptchaVerifier = null;
       }
     },
   });
-
   if (typeof window !== "undefined") {
     window.recaptchaVerifier = verifier;
   }
-
   return verifier;
 };
 

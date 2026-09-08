@@ -894,12 +894,12 @@ export const getCheckoutSettings = async () => {
 };
 
 export const getActiveCoupons = async () => {
-  const data = await apiRequest<any[]>("/coupons/active");
+  const data = await apiRequest<any[]>("/api/coupons/active").catch(() => apiRequest<any[]>("/coupons/active"));
   return (data || []).map(mapCoupon).filter((coupon) => coupon.isActive !== false);
 };
 
 export const getActiveFreeItemOffers = async () => {
-  const data = await apiRequest<any[]>("/free-item-offers/active");
+  const data = await apiRequest<any[]>("/api/free-item-offers/active").catch(() => apiRequest<any[]>("/free-item-offers/active"));
   return (data || []).map(mapFreeItemOffer).filter((offer) => offer.active !== false);
 };
 
@@ -910,14 +910,14 @@ export const applyCoupon = async (payload: { code: string; customerId: number; c
     cartValue: String(payload.cartValue),
   });
 
-  const data = await apiRequest<any>(`/coupons/apply?${params.toString()}`, {
+  const data = await apiRequest<any>(`/api/coupons/apply?${params.toString()}`, {
     auth: true,
-  });
+  }).catch(() => apiRequest<any>(`/coupons/apply?${params.toString()}`, { auth: true }));
 
   return {
     success: data?.success !== false,
     code: data?.code || payload.code.trim().toUpperCase(),
-      discount: Number(data?.discount || 0),
+    discount: Number(data?.discount || 0),
     finalValue: Number(data?.finalValue || 0),
   } satisfies AppliedCoupon;
 };
@@ -1111,7 +1111,7 @@ export const placeOrder = async (payload: {
       },
     });
   } catch {
-    data = await apiRequest<any>("/orders", {
+    data = await apiRequest<any>("/api/orders", {
       auth: true,
       method: "POST",
       body: {
@@ -1133,7 +1133,7 @@ export const getOrders = async () => {
       auth: true,
     });
   } catch {
-    data = await apiRequest<any>("/orders", {
+    data = await apiRequest<any>("/api/orders", {
       auth: true,
     });
   }
@@ -1149,7 +1149,7 @@ export const getOrderById = async (orderId: number) => {
       auth: true,
     });
   } catch {
-    data = await apiRequest<any>(`/orders/${orderId}`, {
+    data = await apiRequest<any>(`/api/orders/${orderId}`, {
       auth: true,
     });
   }
@@ -1158,27 +1158,50 @@ export const getOrderById = async (orderId: number) => {
 };
 
 export const getOrderTracking = async (orderNumber: string) => {
-  const data = await apiRequest<any>(`/tracking/${encodeURIComponent(orderNumber)}`, {
-    auth: true,
-  });
+  let data: any;
+  try {
+    data = await apiRequest<any>(`/api/tracking/${encodeURIComponent(orderNumber)}`, {
+      auth: true,
+    });
+  } catch {
+    data = await apiRequest<any>(`/tracking/${encodeURIComponent(orderNumber)}`, {
+      auth: true,
+    });
+  }
 
   return mapTrackingResponse(data);
 };
 
 export const initiateOnlinePayment = async (orderId: number) => {
-  return apiRequest<{
-    razorpayOrderId: string;
-    amount: number;
-    currency: string;
-    receipt: string;
-    keyId: string;
-  }>("/payment/initiate", {
-    auth: true,
-    method: "POST",
-    body: {
-      orderId,
-    },
-  });
+  try {
+    return await apiRequest<{
+      razorpayOrderId: string;
+      amount: number;
+      currency: string;
+      receipt: string;
+      keyId: string;
+    }>("/api/payment/initiate", {
+      auth: true,
+      method: "POST",
+      body: {
+        orderId,
+      },
+    });
+  } catch {
+    return await apiRequest<{
+      razorpayOrderId: string;
+      amount: number;
+      currency: string;
+      receipt: string;
+      keyId: string;
+    }>("/payment/initiate", {
+      auth: true,
+      method: "POST",
+      body: {
+        orderId,
+      },
+    });
+  }
 };
 
 export const verifyOnlinePayment = async (payload: {
@@ -1187,25 +1210,47 @@ export const verifyOnlinePayment = async (payload: {
   razorpaySignature: string;
   receipt: string;
 }) => {
-  return apiRequest<{ success: boolean; message?: string }>("/payment/verify", {
-    auth: true,
-    method: "POST",
-    body: payload,
-  });
+  try {
+    return await apiRequest<{ success: boolean; message?: string }>("/api/payment/verify", {
+      auth: true,
+      method: "POST",
+      body: payload,
+    });
+  } catch {
+    return await apiRequest<{ success: boolean; message?: string }>("/payment/verify", {
+      auth: true,
+      method: "POST",
+      body: payload,
+    });
+  }
 };
 
 export const requestRefund = async (payload: { orderId: number; amount?: number; reason?: string }) => {
-  return apiRequest<{
-    refundStatus?: string;
-    refundId?: string;
-    refundAmount?: number;
-    refundReason?: string;
-    message?: string;
-  }>("/payment/refund/request", {
-    auth: true,
-    method: "POST",
-    body: payload,
-  });
+  try {
+    return await apiRequest<{
+      refundStatus?: string;
+      refundId?: string;
+      refundAmount?: number;
+      refundReason?: string;
+      message?: string;
+    }>("/api/payment/refund/request", {
+      auth: true,
+      method: "POST",
+      body: payload,
+    });
+  } catch {
+    return await apiRequest<{
+      refundStatus?: string;
+      refundId?: string;
+      refundAmount?: number;
+      refundReason?: string;
+      message?: string;
+    }>("/payment/refund/request", {
+      auth: true,
+      method: "POST",
+      body: payload,
+    });
+  }
 };
 
 export const getWalletBalance = async (customerId: number) => {
@@ -1214,16 +1259,30 @@ export const getWalletBalance = async (customerId: number) => {
     return Number(session.walletBalance || 0);
   }
 
-  const data = await apiRequest<{ success?: boolean; balance?: number | string }>(`/wallet/balance/${customerId}`, {
-    auth: true,
-  });
+  let data: any;
+  try {
+    data = await apiRequest<{ success?: boolean; balance?: number | string }>(`/api/wallet/balance/${customerId}`, {
+      auth: true,
+    });
+  } catch {
+    data = await apiRequest<{ success?: boolean; balance?: number | string }>(`/wallet/balance/${customerId}`, {
+      auth: true,
+    });
+  }
   return Number(data?.balance || 0);
 };
 
 export const getWalletHistory = async (customerId: number) => {
-  const data = await apiRequest<{ success?: boolean; history?: any[] }>(`/wallet/history/${customerId}`, {
-    auth: true,
-  });
+  let data: any;
+  try {
+    data = await apiRequest<{ success?: boolean; history?: any[] }>(`/api/wallet/history/${customerId}`, {
+      auth: true,
+    });
+  } catch {
+    data = await apiRequest<{ success?: boolean; history?: any[] }>(`/wallet/history/${customerId}`, {
+      auth: true,
+    });
+  }
   return (data?.history || []).map((item) => ({
     id: item?.id != null ? Number(item.id) : undefined,
     amount: Number(item?.amount || 0),
@@ -1234,24 +1293,45 @@ export const getWalletHistory = async (customerId: number) => {
 };
 
 export const submitDeliveryRating = async (orderNumber: string, payload: { rating: number; feedback?: string }) => {
-  return apiRequest<{ success?: boolean; message?: string }>(`/orders/${encodeURIComponent(orderNumber)}/rate`, {
-    auth: true,
-    method: "POST",
-    body: payload,
-  });
+  try {
+    return await apiRequest<{ success?: boolean; message?: string }>(`/api/orders/${encodeURIComponent(orderNumber)}/rate`, {
+      auth: true,
+      method: "POST",
+      body: payload,
+    });
+  } catch {
+    return await apiRequest<{ success?: boolean; message?: string }>(`/orders/${encodeURIComponent(orderNumber)}/rate`, {
+      auth: true,
+      method: "POST",
+      body: payload,
+    });
+  }
 };
 
 export const getDeliveryRatingStatus = async (orderNumber: string) => {
-  return apiRequest<{
-    orderNumber?: string;
-    delivered?: boolean;
-    alreadyRated?: boolean;
-    rating?: number;
-    feedback?: string;
-    canRate?: boolean;
-  }>(`/orders/${encodeURIComponent(orderNumber)}/rating`, {
-    auth: true,
-  });
+  try {
+    return await apiRequest<{
+      orderNumber?: string;
+      delivered?: boolean;
+      alreadyRated?: boolean;
+      rating?: number;
+      feedback?: string;
+      canRate?: boolean;
+    }>(`/api/orders/${encodeURIComponent(orderNumber)}/rating`, {
+      auth: true,
+    });
+  } catch {
+    return await apiRequest<{
+      orderNumber?: string;
+      delivered?: boolean;
+      alreadyRated?: boolean;
+      rating?: number;
+      feedback?: string;
+      canRate?: boolean;
+    }>(`/orders/${encodeURIComponent(orderNumber)}/rating`, {
+      auth: true,
+    });
+  }
 };
 
 export const getProductRatings = async (productId: number) => {

@@ -4,12 +4,27 @@ import type { CustomerProfile, CustomerSession } from "../types/storefront";
 import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
 import { authApi } from "@/api/auth.api";
 
+let isSyncingToLegacy = false;
+
 function syncToLegacyStore(session: CustomerSession | null) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || isSyncingToLegacy) return;
   try {
+    isSyncingToLegacy = true;
+    const currentLegacyState = useLegacyAuthStore.getState();
+
     if (!session?.accessToken) {
-      useLegacyAuthStore.getState().clearAuth();
+      if (currentLegacyState.isAuthenticated) {
+        useLegacyAuthStore.getState().clearAuth();
+      }
       localStorage.removeItem("kfpcl_token");
+      return;
+    }
+
+    if (
+      currentLegacyState.isAuthenticated &&
+      currentLegacyState.token === session.accessToken &&
+      currentLegacyState.user?.id === String(session.customerId || 1)
+    ) {
       return;
     }
 
@@ -18,15 +33,15 @@ function syncToLegacyStore(session: CustomerSession | null) {
     useLegacyAuthStore.getState().setUser(
       {
         id: String(session.customerId || 1),
-        name: session.name || (session.phoneNumber ? `User ${session.phoneNumber.slice(-4)}` : "Customer"),
-        email: session.email || `${session.phoneNumber}@kfpcl.com`,
+        name: session.name || (session.phoneNumber ? "User " + session.phoneNumber.slice(-4) : "Customer"),
+        email: session.email || (session.phoneNumber + "@kfpcl.com"),
         phone: session.phoneNumber,
         role: userRole as any,
         isVerified: true,
         gstVerified: false,
         createdAt: new Date().toISOString(),
         company: {
-          id: `company-${session.customerId || 1}`,
+          id: "company-" + (session.customerId || 1),
           name: "KFPCL Buyer",
           address: { street: "", city: "", state: "", pincode: "", country: "India" },
           industry: "Agriculture",
@@ -36,6 +51,8 @@ function syncToLegacyStore(session: CustomerSession | null) {
     );
   } catch (e) {
     console.error("Auth sync error:", e);
+  } finally {
+    isSyncingToLegacy = false;
   }
 }
 
@@ -166,9 +183,6 @@ if (typeof window !== "undefined") {
 
   window.addEventListener(SESSION_UPDATED_EVENT, () => {
     const session = readStoredSession() || getInitialSession();
-    syncToLegacyStore(session);
-    useAuthStore.setState({
-      session,
-    });
+    useAuthStore.setState({ session });
   });
 }
