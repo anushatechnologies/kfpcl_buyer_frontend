@@ -216,13 +216,13 @@ export const firebaseVerifyOtp = async (
  */
 export const firebaseLoginBackend = async ({
   idToken,
-  phoneNumber,
-  fullName,
-  email = "",
+  fullName = "",
+  fcmToken = "",
 }: {
   idToken: string;
-  phoneNumber?: string;
   fullName?: string;
+  fcmToken?: string;
+  phoneNumber?: string;
   email?: string;
 }) => {
   const response = await fetch("https://api.kfpclexports.com/api/auth/firebase-login", {
@@ -232,9 +232,8 @@ export const firebaseLoginBackend = async ({
     },
     body: JSON.stringify({
       idToken,
-      fcmToken: "",
-      fullName: fullName || `Buyer ${(phoneNumber || "").slice(-4) || "User"}`,
-      email: email || "",
+      fullName: fullName || "",
+      fcmToken: fcmToken || "",
     }),
   });
 
@@ -244,9 +243,17 @@ export const firebaseLoginBackend = async ({
   }
 
   if (typeof window !== "undefined") {
-    if (data.accessToken) localStorage.setItem("accessToken", data.accessToken);
-    if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
-    if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+    if (data.accessToken) {
+      localStorage.setItem("accessToken", data.accessToken);
+      localStorage.setItem("kfpcl_token", data.accessToken);
+    }
+    if (data.refreshToken) {
+      localStorage.setItem("refreshToken", data.refreshToken);
+      localStorage.setItem("kfpcl_refresh_token", data.refreshToken);
+    }
+    if (data.user) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+    }
   }
 
   return data;

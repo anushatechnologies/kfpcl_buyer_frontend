@@ -65,9 +65,8 @@ export interface LoginPayload {
 
 export interface FirebaseLoginPayload {
   idToken: string;
-  fcmToken?: string;
   fullName?: string;
-  email?: string;
+  fcmToken?: string;
 }
 
 export interface AuthResponse {
@@ -433,31 +432,43 @@ export const authApi = {
 
   /**
    * Verify a Firebase Phone Auth ID token and create a KFPCL buyer session.
-   * POST /api/auth/firebase-login
+   * POST https://api.kfpclexports.com/api/auth/firebase-login
    */
   firebaseLogin: async (payload: FirebaseLoginPayload): Promise<AuthResponse> => {
     const response = await apiClient.post<any>("/api/auth/firebase-login", {
       idToken: payload.idToken,
-      fcmToken: payload.fcmToken || "",
       fullName: payload.fullName || "",
-      email: payload.email || "",
+      fcmToken: payload.fcmToken || "",
     });
     const data = response.data?.data || response.data;
-    const accessToken = data?.accessToken || data?.token || "";
+    const accessToken = data?.accessToken || "";
+    const refreshToken = data?.refreshToken || "";
 
     if (!accessToken) {
       throw new Error(data?.message || "Backend authentication did not return an access token.");
     }
 
+    if (typeof window !== "undefined") {
+      localStorage.setItem("accessToken", accessToken);
+      localStorage.setItem("kfpcl_token", accessToken);
+      if (refreshToken) {
+        localStorage.setItem("refreshToken", refreshToken);
+        localStorage.setItem("kfpcl_refresh_token", refreshToken);
+      }
+      if (data?.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+    }
+
     return {
       accessToken,
       token: accessToken,
-      refreshToken: data?.refreshToken || "",
-      user: data?.user || data?.customer || {
-        id: data?.customerId || data?.id || 1,
+      refreshToken,
+      user: data?.user || {
+        id: 1,
         phoneNumber: "",
         fullName: payload.fullName || "Buyer",
-        email: payload.email || "",
+        email: "",
         roles: "buyer",
       },
     };

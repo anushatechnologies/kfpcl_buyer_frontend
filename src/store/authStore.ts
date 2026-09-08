@@ -30,8 +30,10 @@ export const useAuthStore = create<AuthStore>()(
 
         if (typeof window !== 'undefined') {
           try {
+            localStorage.setItem('accessToken', token);
             localStorage.setItem('kfpcl_token', token);
             if (refToken) {
+              localStorage.setItem('refreshToken', refToken);
               localStorage.setItem('kfpcl_refresh_token', refToken);
             }
             if (user.email) {
@@ -113,6 +115,12 @@ export const useAuthStore = create<AuthStore>()(
 
       clearAuth: () => {
         set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('kfpcl_token');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('kfpcl_refresh_token');
+        }
         clearStoredSession();
       },
     }),

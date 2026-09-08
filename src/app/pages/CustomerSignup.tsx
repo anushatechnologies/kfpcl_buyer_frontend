@@ -222,17 +222,30 @@ export function CustomerSignup() {
     setErrorMessage("");
 
     try {
-      if (otpMethod === "firebase" && HAS_FIREBASE_CONFIG && typeof window !== "undefined" && (window as any).confirmationResult) {
+      if ((otpMethod === "firebase" || (typeof window !== "undefined" && (window as any).confirmationResult)) && HAS_FIREBASE_CONFIG) {
+        const fbResult = await firebaseVerifyOtp(cleanOtp);
+        // If already registered, firebase-login logs them in immediately
         try {
-          const fbResult = await firebaseVerifyOtp(cleanOtp);
-          // Use idToken as verification credential
-          setVerificationToken(fbResult.idToken);
-          toast.success("Phone verified successfully! Please complete your profile.");
-          setStep("details");
-          return;
-        } catch (fbErr: any) {
-          console.warn("Firebase OTP verify failed, attempting backend fallback:", fbErr);
+          const loginRes = await authApi.firebaseLogin({
+            idToken: fbResult.idToken,
+            fullName: "",
+            fcmToken: "",
+          });
+          if (loginRes.accessToken && loginRes.user) {
+            setAuthFromBackend(loginRes.user, loginRes.accessToken, loginRes.refreshToken || "");
+            toast.success(`Welcome back, ${loginRes.user.fullName || "Buyer"}!`);
+            navigate(redirectTarget, { replace: true });
+            return;
+          }
+        } catch (_) {
+          // New buyer, proceed to business profile step
         }
+
+        // Use idToken as verification credential for signup
+        setVerificationToken(fbResult.idToken);
+        toast.success("Phone verified successfully! Please complete your profile.");
+        setStep("details");
+        return;
       }
 
       // Fallback: non-Firebase backend

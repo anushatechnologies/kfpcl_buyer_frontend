@@ -176,9 +176,17 @@ export function LoginPage() {
     }
 
     if (typeof window !== "undefined") {
-      if (res.accessToken) localStorage.setItem("accessToken", res.accessToken);
-      if (res.refreshToken) localStorage.setItem("refreshToken", res.refreshToken);
-      if (res.user) localStorage.setItem("user", JSON.stringify(res.user));
+      if (res.accessToken) {
+        localStorage.setItem("accessToken", res.accessToken);
+        localStorage.setItem("kfpcl_token", res.accessToken);
+      }
+      if (res.refreshToken) {
+        localStorage.setItem("refreshToken", res.refreshToken);
+        localStorage.setItem("kfpcl_refresh_token", res.refreshToken);
+      }
+      if (res.user) {
+        localStorage.setItem("user", JSON.stringify(res.user));
+      }
     }
 
     toast.success(`Welcome back, ${res.user?.fullName || "Buyer"}!`);
@@ -200,56 +208,19 @@ export function LoginPage() {
     setErrorMessage("");
 
     try {
-      if (otpMethod === "firebase" && HAS_FIREBASE_CONFIG) {
-        try {
-          // 1. Verify code with Firebase
-          const fbResult = await firebaseVerifyOtp(cleanOtp);
+      if ((otpMethod === "firebase" || (typeof window !== "undefined" && window.confirmationResult)) && HAS_FIREBASE_CONFIG) {
+        // 1. Verify code with Firebase
+        const fbResult = await firebaseVerifyOtp(cleanOtp);
 
-          // 2. Call KFPCL Backend to issue session tokens
-          const loginRes = await authApi.firebaseLogin({
-            idToken: fbResult.idToken,
-            fcmToken: "",
-            fullName: `Buyer ${fbResult.phoneNumber.slice(-4) || clean10Digits.slice(-4)}`,
-            email: "",
-          });
+        // 2. Call KFPCL Backend to exchange Firebase ID Token for backend session tokens
+        const loginRes = await authApi.firebaseLogin({
+          idToken: fbResult.idToken,
+          fullName: "",
+          fcmToken: "",
+        });
 
-          completeUserSession(loginRes, clean10Digits);
-          return;
-        } catch (fbErr: any) {
-          if (!window.confirmationResult) {
-            // Try backend login/verify fallback
-            if (isRegistered) {
-              const loginRes = await authApi.login({
-                phoneNumber: clean10Digits,
-                otp: cleanOtp,
-              });
-              completeUserSession(loginRes, clean10Digits);
-              return;
-            } else {
-              const verifyRes = await authApi.verifyOtp(clean10Digits, cleanOtp);
-              if (verifyRes.isRegistered && verifyRes.accessToken && verifyRes.refreshToken && verifyRes.user) {
-                completeUserSession(
-                  {
-                    accessToken: verifyRes.accessToken,
-                    refreshToken: verifyRes.refreshToken || "",
-                    user: verifyRes.user,
-                  },
-                  clean10Digits
-                );
-                return;
-              } else if (verifyRes.verificationToken) {
-                toast.info("Phone verified! Please complete your business registration details.");
-                navigate(
-                  `/register?phone=${encodeURIComponent(clean10Digits)}&token=${encodeURIComponent(
-                    verifyRes.verificationToken
-                  )}&redirect=${encodeURIComponent(redirectTarget)}`
-                );
-                return;
-              }
-            }
-          }
-          throw fbErr;
-        }
+        completeUserSession(loginRes, clean10Digits);
+        return;
       }
 
       // Fallback: non-Firebase backend flow

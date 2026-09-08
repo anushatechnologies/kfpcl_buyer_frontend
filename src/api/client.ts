@@ -37,7 +37,7 @@ apiClient.interceptors.request.use(
     let token = session?.accessToken;
 
     if (!token && typeof window !== 'undefined') {
-      token = localStorage.getItem('kfpcl_token') || undefined;
+      token = localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token') || undefined;
     }
 
     if (token && !config.headers.Authorization) {
@@ -82,7 +82,7 @@ apiClient.interceptors.response.use(
 
     if (error.response.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const session = readStoredSession();
-      const refreshToken = session?.refreshToken || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_refresh_token') : null);
+      const refreshToken = session?.refreshToken || (typeof window !== 'undefined' ? (localStorage.getItem('refreshToken') || localStorage.getItem('kfpcl_refresh_token')) : null);
 
       if (!refreshToken) {
         clearStoredSession();
@@ -116,7 +116,9 @@ apiClient.interceptors.response.use(
             });
           }
           if (typeof window !== 'undefined') {
+            localStorage.setItem('accessToken', newAccessToken);
             localStorage.setItem('kfpcl_token', newAccessToken);
+            localStorage.setItem('refreshToken', newRefreshToken);
             localStorage.setItem('kfpcl_refresh_token', newRefreshToken);
           }
 

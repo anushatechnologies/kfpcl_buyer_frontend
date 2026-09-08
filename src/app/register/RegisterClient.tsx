@@ -363,14 +363,10 @@ function BuyerForm({ setUser, router }: FormProps) {
     }
     setOtpError('');
     try {
-      if (otpMethod === 'firebase' && HAS_FIREBASE_CONFIG && typeof window !== 'undefined' && (window as any).confirmationResult) {
-        try {
-          await firebaseVerifyOtp(enteredOtp);
-          setIsPhoneVerified(true);
-          return;
-        } catch (fbErr: any) {
-          console.warn('Firebase OTP verify failed, attempting backend fallback:', fbErr);
-        }
+      if ((otpMethod === 'firebase' || (typeof window !== 'undefined' && (window as any).confirmationResult)) && HAS_FIREBASE_CONFIG) {
+        await firebaseVerifyOtp(enteredOtp);
+        setIsPhoneVerified(true);
+        return;
       }
 
       await authApi.verifyOtp(cleanPhone, enteredOtp);
