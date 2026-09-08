@@ -228,7 +228,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center px-4 py-12 bg-gradient-to-b from-[#F7F9F8] to-white">
-      {/* Invisible reCAPTCHA container for Firebase */}
+      {/* Invisible reCAPTCHA container for Firebase Phone Auth */}
       <div id="recaptcha-container" />
 
       <div className="w-full max-w-md rounded-3xl border border-gray-200/90 bg-white p-7 sm:p-8 shadow-[0_20px_60px_rgba(10,22,40,0.08)]">

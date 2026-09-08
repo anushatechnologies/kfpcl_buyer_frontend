@@ -28,7 +28,7 @@ export const setupRecaptcha = (containerId: string = "recaptcha-container"): Rec
   const auth: Auth = getFirebaseAuthInstance();
   auth.languageCode = "en";
 
-  // Clear previous verifier
+  // Clear previous verifier instance to prevent "already rendered" errors
   if (typeof window !== "undefined" && window.recaptchaVerifier) {
     try {
       window.recaptchaVerifier.clear();
@@ -36,7 +36,7 @@ export const setupRecaptcha = (containerId: string = "recaptcha-container"): Rec
     window.recaptchaVerifier = null;
   }
 
-  // Ensure container element exists and has clean DOM without breaking React or adding display: none
+  // Reset the container DOM so reCAPTCHA can render fresh each time
   if (typeof document !== "undefined") {
     let container = document.getElementById(containerId);
     if (!container) {
@@ -48,10 +48,14 @@ export const setupRecaptcha = (containerId: string = "recaptcha-container"): Rec
     }
   }
 
+  // Invisible reCAPTCHA handles verification seamlessly in the background
   const verifier = new RecaptchaVerifier(auth, containerId, {
     size: "invisible",
-    callback: () => {},
+    callback: () => {
+      console.log("reCAPTCHA verified successfully");
+    },
     "expired-callback": () => {
+      console.warn("reCAPTCHA expired. Resetting verifier.");
       if (typeof window !== "undefined") {
         window.recaptchaVerifier = null;
       }
