@@ -16,6 +16,7 @@ import { TermsOfService } from "./pages/TermsOfService";
 import { ReferralRedirect } from "./pages/ReferralRedirect";
 import { LoginPage } from "./pages/LoginPage";
 import { Notifications } from "./pages/Notifications";
+import { RFQPage } from "./pages/RFQPage";
 
 export const router = createBrowserRouter([
   {
@@ -35,8 +36,8 @@ export const router = createBrowserRouter([
       { path: "account", Component: Account },
       { path: "profile", Component: Account },
       { path: "orders", Component: Account },
-      { path: "rfq", Component: Account },
-      { path: "rfqs", Component: Account },
+      { path: "rfq", Component: RFQPage },
+      { path: "rfqs", Component: RFQPage },
       { path: "about", Component: About },
       { path: "contact", Component: Contact },
       { path: "privacy-policy", Component: PrivacyPolicy },

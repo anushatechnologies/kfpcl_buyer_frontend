@@ -287,12 +287,10 @@ export function Account() {
   };
 
   useEffect(() => {
-    if (!session?.accessToken) {
-      navigate("/", { replace: true });
-    } else {
+    if (session?.accessToken) {
       void loadCustomerData();
     }
-  }, [session?.accessToken, navigate]);
+  }, [session?.accessToken]);
 
   const activeOrders = useMemo(
     () => orders.filter((order) => isTrackableStatus(order.status || order.orderStatus)),

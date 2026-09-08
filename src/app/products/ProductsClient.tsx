@@ -540,7 +540,7 @@ export default function ProductsClient({
                 <Package className="h-8 w-8" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-dark-800 mb-1">
-                No products found in this category
+                {selectedCategories.length > 0 ? "Products not available in this category." : "No products found"}
               </h3>
               <p className="text-dark-500 text-xs sm:text-sm mb-5 max-w-sm mx-auto">
                 Try selecting other categories or clearing your search filters to view more items.

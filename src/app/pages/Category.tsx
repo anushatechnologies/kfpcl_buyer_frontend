@@ -5,6 +5,11 @@ export function Category() {
   const { slug } = useParams();
   const categoryId = Number((slug || "").match(/^(\d+)/)?.[1]);
 
-  return <CatalogExperience fixedCategoryId={Number.isFinite(categoryId) ? categoryId : undefined} />;
+  return (
+    <CatalogExperience
+      fixedCategoryId={Number.isFinite(categoryId) ? categoryId : undefined}
+      categorySlug={slug}
+    />
+  );
 }
 

@@ -17,6 +17,7 @@ const CATEGORY_COLORS = [
 
 interface CatalogExperienceProps {
   fixedCategoryId?: number;
+  categorySlug?: string;
   title?: string;
   subtitle?: string;
 }
@@ -41,7 +42,7 @@ interface SearchParamsUpdater {
   [key: string]: string | null | undefined;
 }
 
-export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogExperienceProps) {
+export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtitle }: CatalogExperienceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
@@ -53,7 +54,24 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
   const [allShopProducts, setAllShopProducts] = useState<Product[]>([]);
   const [shopProductsLoading, setShopProductsLoading] = useState(false);
 
-  const activeCategoryId = fixedCategoryId ?? numberFromParam(searchParams.get("category"));
+  const activeCategoryId =
+    fixedCategoryId ??
+    numberFromParam(searchParams.get("category") || searchParams.get("categoryId"));
+
+  const resolvedCategoryId = useMemo(() => {
+    if (activeCategoryId) return activeCategoryId;
+    const target = (categorySlug || searchParams.get("category") || searchParams.get("categoryId") || "")
+      .toLowerCase()
+      .trim();
+    if (!target) return undefined;
+    const found = categories.find((c) => {
+      const slugified = c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      return String(c.id) === target || slugified === target || c.name.toLowerCase() === target;
+    });
+    return found?.id;
+  }, [activeCategoryId, categorySlug, searchParams, categories]);
+
+  const effectiveCategoryId = activeCategoryId ?? resolvedCategoryId;
   const activeSubCategoryId = numberFromParam(searchParams.get("sub"));
   const keyword = searchParams.get("q") || "";
   const trending = searchParams.get("trending") === "1";
@@ -113,7 +131,7 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
     };
   }, []);
 
-  const shouldShowCategoryGrid = !activeCategoryId && !keyword && !activeSubCategoryId && !trending;
+  const shouldShowCategoryGrid = !effectiveCategoryId && !keyword && !activeSubCategoryId && !trending;
 
   /* Fetch trending + all products for the shop landing page */
   useEffect(() => {
@@ -140,7 +158,7 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
   useEffect(() => {
     let isMounted = true;
 
-    if (!activeCategoryId) {
+    if (!effectiveCategoryId) {
       setSubcategories([]);
       setCurrentCategory(null);
       return () => {
@@ -148,21 +166,26 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
       };
     }
 
-    Promise.all([getCategoryById(activeCategoryId), getSubcategories(activeCategoryId)])
+    Promise.all([getCategoryById(effectiveCategoryId), getSubcategories(effectiveCategoryId)])
       .then(([category, nextSubcategories]) => {
         if (!isMounted) return;
-        setCurrentCategory(category);
+        setCurrentCategory(category || categories.find((c) => c.id === effectiveCategoryId) || null);
         setSubcategories(nextSubcategories);
       })
       .catch((loadError: any) => {
         if (!isMounted) return;
-        setError(loadError?.message || "Unable to load category details.");
+        const fallbackCat = categories.find((c) => c.id === effectiveCategoryId) || null;
+        if (fallbackCat) {
+          setCurrentCategory(fallbackCat);
+        } else {
+          setError(loadError?.message || "Unable to load category details.");
+        }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [activeCategoryId]);
+  }, [effectiveCategoryId, categories]);
 
   useEffect(() => {
     let isMounted = true;
@@ -170,7 +193,7 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
     setError("");
 
     getProducts({
-      categoryId: activeCategoryId,
+      categoryId: effectiveCategoryId,
       subCategoryId: activeSubCategoryId,
       trending: trending || undefined,
       keyword: keyword || undefined,
@@ -193,9 +216,48 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
     return () => {
       isMounted = false;
     };
-  }, [activeCategoryId, activeSubCategoryId, keyword, trending]);
+  }, [effectiveCategoryId, activeSubCategoryId, keyword, trending]);
 
-  const sortedProducts = useMemo(() => sortProducts(products, sortBy), [products, sortBy]);
+  // Strictly filter products related to the selected category (and subcategory)
+  const relatedProducts = useMemo(() => {
+    if (!effectiveCategoryId) {
+      return products;
+    }
+
+    const currentCatName = currentCategory?.name?.trim().toLowerCase();
+
+    return products.filter((product) => {
+      // 1. Direct categoryId match
+      if (product.categoryId != null && Number(product.categoryId) === Number(effectiveCategoryId)) {
+        return true;
+      }
+      // 2. Matching categoryName
+      if (currentCatName && product.categoryName) {
+        if (product.categoryName.trim().toLowerCase() === currentCatName) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [products, effectiveCategoryId, currentCategory]);
+
+  const subCategoryFilteredProducts = useMemo(() => {
+    if (!activeSubCategoryId) return relatedProducts;
+    return relatedProducts.filter((product) => {
+      if (product.subCategoryId != null && Number(product.subCategoryId) === Number(activeSubCategoryId)) {
+        return true;
+      }
+      const activeSub = subcategories.find((s) => s.id === activeSubCategoryId);
+      if (activeSub?.name && product.subCategoryName) {
+        if (product.subCategoryName.trim().toLowerCase() === activeSub.name.trim().toLowerCase()) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [relatedProducts, activeSubCategoryId, subcategories]);
+
+  const sortedProducts = useMemo(() => sortProducts(subCategoryFilteredProducts, sortBy), [subCategoryFilteredProducts, sortBy]);
 
   const visibleTitle = title || currentCategory?.name || "Shop by category";
   const visibleSubtitle =
@@ -205,20 +267,6 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
       : keyword
         ? `Showing smart results for "${keyword}" with typo correction and local grocery keywords.`
         : "Browse categories, refine with subcategories, and compare products on one clean page.");
-
-  const appliedFilters = useMemo(() => {
-    const labels: string[] = [];
-    if (currentCategory?.name) labels.push(currentCategory.name);
-    if (keyword) labels.push(`Search: ${keyword}`);
-    if (activeSubCategoryId) {
-      const match = subcategories.find((subcategory) => subcategory.id === activeSubCategoryId);
-
-
-      if (match) labels.push(match.name);
-    }
-    if (trending) labels.push("Trending");
-    return labels;
-  }, [activeSubCategoryId, currentCategory?.name, keyword, subcategories, trending]);
 
   return (
     <div className="app-shell">
@@ -373,177 +421,183 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
           {/* ── Top Subcategories Navigation (Boutique Organic Circular Menu) ── */}
           {currentCategory && subcategories.length > 0 && (
             <div className="sticky top-[70px] z-40 bg-white/95 backdrop-blur-xl border-b border-gray-100 pb-4 pt-4 mb-6 shadow-sm -mx-4 px-4 sm:mx-0 sm:px-2 sm:rounded-b-2xl">
-                  <div className="flex gap-6 overflow-x-auto pb-2 scrollbar-hide">
-                    {/* "All" Option */}
+              <div className="flex gap-6 overflow-x-auto pb-2 scrollbar-hide">
+                {/* "All" Option */}
+                <button
+                  type="button"
+                  onClick={() => updateParams({ sub: null })}
+                  className="group flex flex-col items-center shrink-0 focus:outline-none"
+                >
+                  <div className={`h-16 w-16 rounded-full border-2 bg-white overflow-hidden flex items-center justify-center transition-all duration-300 ${
+                    !activeSubCategoryId
+                      ? "border-[#D4A853] ring-4 ring-[#D4A853]/15 shadow-md scale-105"
+                      : "border-[#E2E8F0] group-hover:border-[#0A4D3C]/30"
+                  }`}>
+                    <Grid3X3 className={`h-6 w-6 transition-colors duration-300 ${!activeSubCategoryId ? "text-[#0A4D3C]" : "text-[#94A3B8] group-hover:text-[#0A4D3C]"}`} />
+                  </div>
+                  <span className={`text-[12px] mt-2 transition-all duration-300 font-bold ${
+                    !activeSubCategoryId ? "text-[#0A4D3C] font-black" : "text-[#6B7B94] group-hover:text-[#0A4D3C]"
+                  }`}>
+                    All {currentCategory.name}
+                  </span>
+                </button>
+
+                {/* Subcategories */}
+                {subcategories.map((sub) => {
+                  const isActive = activeSubCategoryId === sub.id;
+                  return (
                     <button
+                      key={sub.id}
                       type="button"
-                      onClick={() => updateParams({ sub: null })}
+                      onClick={() => updateParams({ sub: String(sub.id) })}
                       className="group flex flex-col items-center shrink-0 focus:outline-none"
                     >
-                      <div className={`h-16 w-16 rounded-full border-2 bg-white overflow-hidden flex items-center justify-center transition-all duration-300 ${
-                        !activeSubCategoryId
+                      <div className={`h-16 w-16 rounded-full border-2 bg-white overflow-hidden transition-all duration-300 ${
+                        isActive
                           ? "border-[#D4A853] ring-4 ring-[#D4A853]/15 shadow-md scale-105"
                           : "border-[#E2E8F0] group-hover:border-[#0A4D3C]/30"
                       }`}>
-                        <Grid3X3 className={`h-6 w-6 transition-colors duration-300 ${!activeSubCategoryId ? "text-[#0A4D3C]" : "text-[#94A3B8] group-hover:text-[#0A4D3C]"}`} />
+                        {sub.imageUrl ? (
+                          <img
+                            src={sub.imageUrl}
+                            alt={sub.name}
+                            className="h-full w-full object-cover bg-white"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : null}
                       </div>
                       <span className={`text-[12px] mt-2 transition-all duration-300 font-bold ${
-                        !activeSubCategoryId ? "text-[#0A4D3C] font-black" : "text-[#6B7B94] group-hover:text-[#0A4D3C]"
+                        isActive ? "text-[#0A4D3C] font-black" : "text-[#6B7B94] group-hover:text-[#0A4D3C]"
                       }`}>
-                        All {currentCategory.name}
+                        {sub.name}
                       </span>
                     </button>
-
-                    {/* Subcategories */}
-                    {subcategories.map((sub) => {
-                      const isActive = activeSubCategoryId === sub.id;
-                      return (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          onClick={() => updateParams({ sub: String(sub.id) })}
-                          className="group flex flex-col items-center shrink-0 focus:outline-none"
-                        >
-                          <div className={`h-16 w-16 rounded-full border-2 bg-white overflow-hidden transition-all duration-300 ${
-                            isActive
-                              ? "border-[#D4A853] ring-4 ring-[#D4A853]/15 shadow-md scale-105"
-                              : "border-[#E2E8F0] group-hover:border-[#0A4D3C]/30"
-                          }`}>
-                            {sub.imageUrl ? (
-                              <img
-                                src={sub.imageUrl}
-                                alt={sub.name}
-                                className="h-full w-full object-cover bg-white"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                            ) : null}
-                          </div>
-                          <span className={`text-[12px] mt-2 transition-all duration-300 font-bold ${
-                            isActive ? "text-[#0A4D3C] font-black" : "text-[#6B7B94] group-hover:text-[#0A4D3C]"
-                          }`}>
-                            {sub.name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Promotional Banners (Dual Premium Editorial Side-by-Side) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Banner 1: Bazaar Selects */}
-                <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A4D3C] via-[#0E5E4A] to-[#D4A853] p-7 text-white min-h-[180px] group shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-500 cursor-pointer">
-                  <div className="max-w-[65%] z-10">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D4A853] bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">Bazaar Selects</span>
-                    <h3 className="mt-4 font-sans text-lg font-black leading-tight tracking-tight text-white sm:text-xl">
-                      Forgot The Flowers? <span className="text-[#D4A853] font-black">WE DIDN'T!</span>
-                    </h3>
-                    <p className="mt-1.5 text-[13px] text-white/80 font-medium">Fresh blooms handpicked & delivered in minutes</p>
-                  </div>
-                  <div className="mt-5 z-10">
-                    <button className="rounded-xl bg-[#D4A853] text-[#0A4D3C] px-6 py-2.5 text-[13px] font-black hover:bg-white hover:text-[#0A4D3C] hover:shadow-lg transition-all shadow-sm uppercase tracking-wider">
-                      Explore Selects
-                    </button>
-                  </div>
-                  <div className="absolute -bottom-4 -right-4 h-36 w-36 opacity-90 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-700 z-0">
-                    <img src="https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=300&q=80" alt="" className="h-full w-full object-contain mix-blend-screen" />
-                  </div>
-                </div>
-
-                {/* Banner 2: Daily Fresh */}
-                <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-[#073B4C] via-[#0A4D3C] to-[#E67E22] p-7 text-white min-h-[180px] group shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-500 cursor-pointer">
-                  <div className="max-w-[65%] z-10">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A7F3D0] bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">Daily Fresh</span>
-                    <h3 className="mt-4 font-sans text-lg font-black leading-tight tracking-tight text-white sm:text-xl">
-                      Freshly Launched Market Deals
-                    </h3>
-                    <p className="mt-1.5 text-[13px] font-bold text-[#A7F3D0]">UP TO 30% OFF FRESHNESS</p>
-                  </div>
-                  <div className="mt-5 z-10">
-                    <button className="rounded-xl bg-white text-[#0A4D3C] px-6 py-2.5 text-[13px] font-black hover:bg-[#F4F8F6] hover:shadow-lg transition-all shadow-sm uppercase tracking-wider">
-                      Shop Fresh
-                    </button>
-                  </div>
-                  <div className="absolute -bottom-3 -right-2 h-36 w-36 opacity-90 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-700 z-0">
-                    <img src="https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?auto=format&fit=crop&w=300&q=80" alt="" className="h-full w-full object-contain mix-blend-screen" />
-                  </div>
-                </div>
+                  );
+                })}
               </div>
+            </div>
+          )}
 
-              {/* ── Toolbar: Search + Sort + Count ── */}
-              <div className="flex flex-col gap-4 rounded-3xl border border-[#E2E8F0]/80 bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-                {/* Search */}
-                <div className="flex items-center gap-2 flex-1 max-w-lg">
-                  <div className="flex flex-1 items-center rounded-2xl bg-[#F8FAFC] px-4 py-3 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0A4D3C]/20 focus-within:border-transparent border border-transparent hover:border-[#E2E8F0] transition-all shadow-inner shadow-slate-100/50">
-                    <Search className="mr-3 h-4 w-4 text-[#94A3B8] flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={draftQuery}
-                      onChange={(event) => setDraftQuery(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          updateParams({ q: draftQuery.trim() || null });
-                        }
-                      }}
-                      className="w-full bg-transparent text-[15px] font-medium text-[#0A1628] outline-none placeholder:text-[#94A3B8]"
-                      placeholder={`Search in ${currentCategory?.name || "products"}...`}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => updateParams({ q: draftQuery.trim() || null })}
-                    className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-[#0A4D3C] text-[#D4A853] hover:bg-[#0E5E4A] hover:text-white transition-all hover:shadow-lg hover:-translate-y-0.5 flex-shrink-0"
-                  >
-                    <Search className="h-5 w-5" />
-                  </button>
-                </div>
-
-                {/* Sort + count */}
-                <div className="flex items-center gap-4 flex-shrink-0 px-2 sm:px-0">
-                  <span className="text-[13px] text-[#6B7B94] font-black uppercase tracking-wider hidden sm:inline">
-                    {sortedProducts.length} result{sortedProducts.length === 1 ? "" : "s"}
-                  </span>
-                  <div className="h-6 w-px bg-[#E2E8F0] hidden sm:block" />
-                  <div className="relative group">
-                     <select
-                       value={sortBy}
-                       onChange={(event) => updateParams({ sort: event.target.value })}
-                       className="appearance-none rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-4 pr-10 py-2.5 text-sm text-[#0A1628] outline-none hover:border-[#CBD5E1] focus:border-[#0A4D3C] focus:ring-1 focus:ring-[#0A4D3C] transition-all cursor-pointer font-bold shadow-sm"
-                     >
-                       {sortOptions.map((option) => (
-                         <option key={option.value} value={option.value}>
-                           {option.label}
-                         </option>
-                       ))}
-                     </select>
-                     <SlidersHorizontal className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8] pointer-events-none group-hover:text-[#0A1628] transition-colors" />
-                  </div>
-                </div>
+          {/* Promotional Banners (Dual Premium Editorial Side-by-Side) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Banner 1: Bazaar Selects */}
+            <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A4D3C] via-[#0E5E4A] to-[#D4A853] p-7 text-white min-h-[180px] group shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-500 cursor-pointer">
+              <div className="max-w-[65%] z-10">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D4A853] bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">Bazaar Selects</span>
+                <h3 className="mt-4 font-sans text-lg font-black leading-tight tracking-tight text-white sm:text-xl">
+                  Forgot The Flowers? <span className="text-[#D4A853] font-black">WE DIDN'T!</span>
+                </h3>
+                <p className="mt-1.5 text-[13px] text-white/80 font-medium">Fresh blooms handpicked & delivered in minutes</p>
               </div>
+              <div className="mt-5 z-10">
+                <button className="rounded-xl bg-[#D4A853] text-[#0A4D3C] px-6 py-2.5 text-[13px] font-black hover:bg-white hover:text-[#0A4D3C] hover:shadow-lg transition-all shadow-sm uppercase tracking-wider">
+                  Explore Selects
+                </button>
+              </div>
+              <div className="absolute -bottom-4 -right-4 h-36 w-36 opacity-90 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-700 z-0">
+                <img src="https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=300&q=80" alt="" className="h-full w-full object-contain mix-blend-screen" />
+              </div>
+            </div>
 
-              {isLoading ? (
-                <div className="flex min-h-[400px] items-center justify-center text-[#6B7B94]">
-                  <div className="text-center">
-                    <LoaderCircle className="mx-auto mb-3 h-8 w-8 animate-spin text-[#0A4D3C]" />
-                    <span className="text-sm font-bold text-[#0A4D3C]">Loading products...</span>
-                  </div>
-                </div>
-              ) : error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-                  {error}
-                </div>
-              ) : sortedProducts.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-[#0A4D3C]/20 bg-[#F4F8F6] px-6 py-20 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#E6F4F0]">
-                    <Search className="h-7 w-7 text-[#0A4D3C]" />
-                  </div>
-                  <h3 className="font-sans text-lg font-black text-[#0A4D3C]">No products found</h3>
-                  <p className="mx-auto mt-2 max-w-sm text-sm text-[#7C9A90] font-medium">
-                    Try broader terms or grocery names like rice, milk, atta, or dal.
-                  </p>
+            {/* Banner 2: Daily Fresh */}
+            <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-[#073B4C] via-[#0A4D3C] to-[#E67E22] p-7 text-white min-h-[180px] group shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-500 cursor-pointer">
+              <div className="max-w-[65%] z-10">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A7F3D0] bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">Daily Fresh</span>
+                <h3 className="mt-4 font-sans text-lg font-black leading-tight tracking-tight text-white sm:text-xl">
+                  Freshly Launched Market Deals
+                </h3>
+                <p className="mt-1.5 text-[13px] font-bold text-[#A7F3D0]">UP TO 30% OFF FRESHNESS</p>
+              </div>
+              <div className="mt-5 z-10">
+                <button className="rounded-xl bg-white text-[#0A4D3C] px-6 py-2.5 text-[13px] font-black hover:bg-[#F4F8F6] hover:shadow-lg transition-all shadow-sm uppercase tracking-wider">
+                  Shop Fresh
+                </button>
+              </div>
+              <div className="absolute -bottom-3 -right-2 h-36 w-36 opacity-90 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-700 z-0">
+                <img src="https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?auto=format&fit=crop&w=300&q=80" alt="" className="h-full w-full object-contain mix-blend-screen" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Toolbar: Search + Sort + Count ── */}
+          <div className="flex flex-col gap-4 rounded-3xl border border-[#E2E8F0]/80 bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+            {/* Search */}
+            <div className="flex items-center gap-2 flex-1 max-w-lg">
+              <div className="flex flex-1 items-center rounded-2xl bg-[#F8FAFC] px-4 py-3 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0A4D3C]/20 focus-within:border-transparent border border-transparent hover:border-[#E2E8F0] transition-all shadow-inner shadow-slate-100/50">
+                <Search className="mr-3 h-4 w-4 text-[#94A3B8] flex-shrink-0" />
+                <input
+                  type="text"
+                  value={draftQuery}
+                  onChange={(event) => setDraftQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      updateParams({ q: draftQuery.trim() || null });
+                    }
+                  }}
+                  className="w-full bg-transparent text-[15px] font-medium text-[#0A1628] outline-none placeholder:text-[#94A3B8]"
+                  placeholder={`Search in ${currentCategory?.name || "products"}...`}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => updateParams({ q: draftQuery.trim() || null })}
+                className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-[#0A4D3C] text-[#D4A853] hover:bg-[#0E5E4A] hover:text-white transition-all hover:shadow-lg hover:-translate-y-0.5 flex-shrink-0"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Sort + count */}
+            <div className="flex items-center gap-4 flex-shrink-0 px-2 sm:px-0">
+              <span className="text-[13px] text-[#6B7B94] font-black uppercase tracking-wider hidden sm:inline">
+                {sortedProducts.length} result{sortedProducts.length === 1 ? "" : "s"}
+              </span>
+              <div className="h-6 w-px bg-[#E2E8F0] hidden sm:block" />
+              <div className="relative group">
+                 <select
+                   value={sortBy}
+                   onChange={(event) => updateParams({ sort: event.target.value })}
+                   className="appearance-none rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-4 pr-10 py-2.5 text-sm text-[#0A1628] outline-none hover:border-[#CBD5E1] focus:border-[#0A4D3C] focus:ring-1 focus:ring-[#0A4D3C] transition-all cursor-pointer font-bold shadow-sm"
+                 >
+                   {sortOptions.map((option) => (
+                     <option key={option.value} value={option.value}>
+                       {option.label}
+                     </option>
+                   ))}
+                 </select>
+                 <SlidersHorizontal className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8] pointer-events-none group-hover:text-[#0A1628] transition-colors" />
+              </div>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="flex min-h-[400px] items-center justify-center text-[#6B7B94]">
+              <div className="text-center">
+                <LoaderCircle className="mx-auto mb-3 h-8 w-8 animate-spin text-[#0A4D3C]" />
+                <span className="text-sm font-bold text-[#0A4D3C]">Loading products...</span>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+              {error}
+            </div>
+          ) : sortedProducts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#0A4D3C]/20 bg-[#F4F8F6] px-6 py-20 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#E6F4F0]">
+                <Search className="h-7 w-7 text-[#0A4D3C]" />
+              </div>
+              <h3 className="font-sans text-lg font-black text-[#0A4D3C]">
+                {effectiveCategoryId ? "Products not available in this category." : "No products found"}
+              </h3>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-[#7C9A90] font-medium">
+                {effectiveCategoryId
+                  ? "There are currently no products listed under this category. Please explore other categories or check back soon."
+                  : "Try broader terms or grocery names like rice, milk, atta, or dal."}
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                {activeSubCategoryId || keyword ? (
                   <button
                     type="button"
                     onClick={() =>
@@ -554,18 +608,26 @@ export function CatalogExperience({ fixedCategoryId, title, subtitle }: CatalogE
                         sort: "featured",
                       })
                     }
-                    className="mt-5 inline-flex items-center justify-center rounded-lg bg-[#0A4D3C] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0E5E4A] transition-colors shadow-sm"
+                    className="inline-flex items-center justify-center rounded-xl bg-[#0A4D3C] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0E5E4A] transition-colors shadow-sm"
                   >
-                    Reset filters
+                    Clear filters
                   </button>
-                </div>
-              ) : (
-                <div className="grid gap-3 sm:gap-6 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 animate-scale-in">
-                  {sortedProducts.map((product) => (
-                    <ProductCard key={`${product.id}-${product.primaryVariant?.id || "single"}`} product={product} />
-                  ))}
-                </div>
-              )}
+                ) : null}
+                <Link
+                  to="/shop"
+                  className="inline-flex items-center justify-center rounded-xl border border-[#0A4D3C]/30 bg-white px-5 py-2.5 text-sm font-bold text-[#0A4D3C] hover:bg-[#F4F8F6] transition-colors shadow-sm"
+                >
+                  Browse all categories
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:gap-6 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 animate-scale-in">
+              {sortedProducts.map((product) => (
+                <ProductCard key={`${product.id}-${product.primaryVariant?.id || "single"}`} product={product} />
+              ))}
+            </div>
+          )}
         </motion.div>
       )}
     </div>

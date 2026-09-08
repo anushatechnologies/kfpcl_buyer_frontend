@@ -272,9 +272,13 @@ export default function FeaturedProducts() {
         ) : (
           <div className="rounded-2xl border border-dashed border-dark-200 bg-dark-50 px-5 py-12 text-center">
             <Package className="h-10 w-10 text-dark-300 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-dark-600 mb-1">No products available yet</p>
+            <p className="text-sm font-semibold text-dark-600 mb-1">
+              {selectedFilter !== 'all' ? 'Products not available in this category.' : 'No products available yet'}
+            </p>
             <p className="text-xs text-dark-400 max-w-xs mx-auto">
-              Products will appear here once verified sellers list their export commodities.
+              {selectedFilter !== 'all'
+                ? 'Try selecting another category or browse all products.'
+                : 'Products will appear here once verified sellers list their export commodities.'}
             </p>
             <Link
               href="/products"

@@ -718,7 +718,20 @@ const fetchProducts = async (query?: {
               : [];
 
       if (list.length > 0) {
-        return list.map(mapProduct).filter((item) => item.isActive !== false);
+        let mapped = list.map(mapProduct).filter((item) => item.isActive !== false);
+        if (query?.categoryId != null) {
+          mapped = mapped.filter((item) => item.categoryId != null && Number(item.categoryId) === Number(query.categoryId));
+        }
+        if (query?.subCategoryId != null) {
+          mapped = mapped.filter((item) => item.subCategoryId != null && Number(item.subCategoryId) === Number(query.subCategoryId));
+        }
+        if (mapped.length > 0) {
+          return mapped;
+        }
+      } else if (Array.isArray(data) || Array.isArray(data?.content) || Array.isArray(data?.data) || Array.isArray(data?.products)) {
+        if (query?.categoryId != null || query?.subCategoryId != null) {
+          return [];
+        }
       }
     } catch (error) {
       console.warn(`Failed to fetch ${path}`, error);
