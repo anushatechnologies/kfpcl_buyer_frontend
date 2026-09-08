@@ -76,34 +76,11 @@ export function LoginPage() {
       setIsRegistered(checkResult.exists);
 
       if (HAS_FIREBASE_CONFIG) {
-        try {
-          // ✅ Try Firebase Phone Auth first
-          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-          setOtpMethod("firebase");
-          toast.success(result.message);
-        } catch (fbErr: any) {
-          console.warn("Firebase Phone Auth failed, attempting SMS backend fallback:", fbErr);
-          const fallbackResult = await authApi.sendOtp(clean10Digits);
-          setOtpMethod("backend");
-          toast.success(fallbackResult.message || "Verification code sent via SMS gateway.");
-          try {
-            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
-            if (devRes?.otp) {
-              setFallbackOtp(devRes.otp);
-            }
-          } catch (_) {}
-        }
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+        setOtpMethod("firebase");
+        toast.success(result.message);
       } else {
-        // Fallback: backend OTP
-        const sendResult = await authApi.sendOtp(clean10Digits);
-        setOtpMethod("backend");
-        toast.success(sendResult.message || "Verification code sent to your phone via SMS.");
-        try {
-          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
-          if (devRes?.otp) {
-            setFallbackOtp(devRes.otp);
-          }
-        } catch (_) {}
+        throw new Error("Firebase Authentication is not configured.");
       }
 
       setStep("otp");
@@ -128,32 +105,19 @@ export function LoginPage() {
     resetFirebaseSession();
 
     try {
-      if (HAS_FIREBASE_CONFIG && otpMethod === "firebase") {
-        try {
-          const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-          toast.success(`New OTP sent — ${result.message}`);
-        } catch (fbErr: any) {
-          const res = await authApi.resendOtp(clean10Digits);
-          setOtpMethod("backend");
-          toast.success(res.message || "New verification code sent via SMS.");
-          try {
-            const devRes = await authApi.getDevelopmentOtp(clean10Digits);
-            if (devRes?.otp) setFallbackOtp(devRes.otp);
-          } catch (_) {}
-        }
+      if (HAS_FIREBASE_CONFIG) {
+        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
+        setOtpMethod("firebase");
+        toast.success(`New OTP sent — ${result.message}`);
       } else {
-        const res = await authApi.resendOtp(clean10Digits);
-        toast.success(res.message || "New verification code sent via SMS.");
-        try {
-          const devRes = await authApi.getDevelopmentOtp(clean10Digits);
-          if (devRes?.otp) setFallbackOtp(devRes.otp);
-        } catch (_) {}
+        throw new Error("Firebase Authentication is not configured.");
       }
       setCooldown(60);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to resend verification code via SMS.";
       setErrorMessage(msg);
       toast.error(msg);
+      resetFirebaseSession();
     } finally {
       setIsLoading(false);
     }
