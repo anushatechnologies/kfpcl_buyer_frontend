@@ -17,7 +17,10 @@ export const SHARE_URL = trimTrailingSlash(
 
 export const FIREBASE_CONFIG = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBa1Arilraettuqi_8IA0v4Qae0mwrkYjQ",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "anushabazaar-2288e.firebaseapp.com",
+  // authDomain MUST be your deployed website domain (not the firebase project domain)
+  // so that Firebase reCAPTCHA works correctly and OTP SMS is actually sent.
+  // Add this domain in Firebase Console → Authentication → Settings → Authorized Domains
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "kfpclexports.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "anushabazaar-2288e",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:64875938387:web:0ae8c08c931e2dabba7ca6",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "64875938387",
