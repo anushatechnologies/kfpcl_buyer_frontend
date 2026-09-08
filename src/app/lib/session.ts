@@ -9,6 +9,15 @@ export const SESSION_UPDATED_EVENT = "kfpcl:session-updated";
 
 let refreshPromise: Promise<CustomerSession | null> | null = null;
 
+/**
+ * Set to true before calling writeStoredSession from within a sync/auth callback
+ * to prevent the SESSION_UPDATED_EVENT from firing and causing an infinite loop.
+ */
+export let suppressSessionEvents = false;
+export const setSuppressSessionEvents = (val: boolean) => {
+  suppressSessionEvents = val;
+};
+
 const parseSession = (raw: string | null): CustomerSession | null => {
   if (!raw) return null;
   try {
@@ -64,7 +73,9 @@ export const writeStoredSession = (session: CustomerSession) => {
   if (session.phoneNumber) {
     window.localStorage.setItem("kfpcl_user_phone", session.phoneNumber);
   }
-  window.dispatchEvent(new Event(SESSION_UPDATED_EVENT));
+  if (!suppressSessionEvents) {
+    window.dispatchEvent(new Event(SESSION_UPDATED_EVENT));
+  }
 };
 
 export const clearStoredSession = () => {

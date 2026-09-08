@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { SESSION_CLEARED_EVENT, SESSION_UPDATED_EVENT, clearStoredSession, readStoredSession, writeStoredSession } from "../lib/session";
+import { SESSION_CLEARED_EVENT, SESSION_UPDATED_EVENT, clearStoredSession, readStoredSession, writeStoredSession, setSuppressSessionEvents } from "../lib/session";
 import type { CustomerProfile, CustomerSession } from "../types/storefront";
 import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
 import { authApi } from "@/api/auth.api";
@@ -30,25 +30,33 @@ function syncToLegacyStore(session: CustomerSession | null) {
 
     localStorage.setItem("kfpcl_token", session.accessToken);
     const userRole = session.roles?.toLowerCase?.() === "seller" ? "seller" : "buyer";
-    useLegacyAuthStore.getState().setUser(
-      {
-        id: String(session.customerId || 1),
-        name: session.name || (session.phoneNumber ? "User " + session.phoneNumber.slice(-4) : "Customer"),
-        email: session.email || (session.phoneNumber + "@kfpcl.com"),
-        phone: session.phoneNumber,
-        role: userRole as any,
-        isVerified: true,
-        gstVerified: false,
-        createdAt: new Date().toISOString(),
-        company: {
-          id: "company-" + (session.customerId || 1),
-          name: "KFPCL Buyer",
-          address: { street: "", city: "", state: "", pincode: "", country: "India" },
-          industry: "Agriculture",
+
+    // Suppress SESSION_UPDATED_EVENT while syncing to prevent infinite loop:
+    // writeStoredSession → SESSION_UPDATED_EVENT → syncToLegacyStore → setUser → writeStoredSession
+    setSuppressSessionEvents(true);
+    try {
+      useLegacyAuthStore.getState().setUser(
+        {
+          id: String(session.customerId || 1),
+          name: session.name || (session.phoneNumber ? "User " + session.phoneNumber.slice(-4) : "Customer"),
+          email: session.email || (session.phoneNumber + "@kfpcl.com"),
+          phone: session.phoneNumber,
+          role: userRole as any,
+          isVerified: true,
+          gstVerified: false,
+          createdAt: new Date().toISOString(),
+          company: {
+            id: "company-" + (session.customerId || 1),
+            name: "KFPCL Buyer",
+            address: { street: "", city: "", state: "", pincode: "", country: "India" },
+            industry: "Agriculture",
+          },
         },
-      },
-      session.accessToken
-    );
+        session.accessToken
+      );
+    } finally {
+      setSuppressSessionEvents(false);
+    }
   } catch (e) {
     console.error("Auth sync error:", e);
   } finally {
