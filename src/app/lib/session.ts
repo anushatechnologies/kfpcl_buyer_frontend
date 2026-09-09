@@ -38,15 +38,58 @@ export const readStoredSession = (): CustomerSession | null => {
     if (cookieMatch) {
       const rawValue = cookieMatch.slice(`${SESSION_COOKIE}=`.length);
       const session = parseSession(decodeURIComponent(rawValue));
-      if (session) return session;
+      if (session && session.accessToken && session.accessToken !== "undefined" && session.accessToken !== "null") {
+        return session;
+      }
     }
 
     const legacySession = parseSession(window.localStorage.getItem(SESSION_KEY));
-    if (legacySession) {
+    if (legacySession && legacySession.accessToken && legacySession.accessToken !== "undefined" && legacySession.accessToken !== "null") {
       const serialized = JSON.stringify(legacySession);
       const secure = window.location.protocol === "https:" ? "; Secure" : "";
       document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(serialized)}; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
       return legacySession;
+    }
+
+    // Fallback: Recover session from direct localStorage token keys
+    const directToken =
+      window.localStorage.getItem("accessToken") ||
+      window.localStorage.getItem("kfpcl_token");
+
+    if (directToken && directToken !== "undefined" && directToken !== "null" && directToken.trim()) {
+      let storedUser: any = null;
+      try {
+        const rawUser = window.localStorage.getItem("user") || window.localStorage.getItem("buyer");
+        if (rawUser) storedUser = JSON.parse(rawUser);
+      } catch {}
+
+      const cleanPhone =
+        storedUser?.phoneNumber ||
+        storedUser?.phone ||
+        window.localStorage.getItem("kfpcl_user_phone") ||
+        "";
+
+      const recoveredSession: CustomerSession = {
+        accessToken: directToken.trim(),
+        refreshToken:
+          window.localStorage.getItem("refreshToken") ||
+          window.localStorage.getItem("kfpcl_refresh_token") ||
+          "",
+        customerId: Number(storedUser?.id) || 1,
+        phoneNumber: cleanPhone,
+        name: storedUser?.fullName || storedUser?.name || "Buyer",
+        email: storedUser?.email || window.localStorage.getItem("kfpcl_user_email") || "",
+        roles: storedUser?.role || storedUser?.roles || "buyer",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      };
+
+      // Persist recovered session back to cookie and primary storage key
+      const serialized = JSON.stringify(recoveredSession);
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(serialized)}; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+      window.localStorage.setItem(SESSION_KEY, serialized);
+
+      return recoveredSession;
     }
   } catch (e) {
     console.error("Error reading stored session:", e);
@@ -61,10 +104,12 @@ export const writeStoredSession = (session: CustomerSession) => {
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(serialized)}; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
   window.localStorage.setItem(SESSION_KEY, serialized);
-  if (session.accessToken) {
+  if (session.accessToken && session.accessToken !== "undefined" && session.accessToken !== "null") {
+    window.localStorage.setItem("accessToken", session.accessToken);
     window.localStorage.setItem("kfpcl_token", session.accessToken);
   }
-  if (session.refreshToken) {
+  if (session.refreshToken && session.refreshToken !== "undefined" && session.refreshToken !== "null") {
+    window.localStorage.setItem("refreshToken", session.refreshToken);
     window.localStorage.setItem("kfpcl_refresh_token", session.refreshToken);
   }
   if (session.email) {
@@ -82,7 +127,9 @@ export const clearStoredSession = () => {
   if (typeof window === "undefined") return;
   document.cookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
   window.localStorage.removeItem(SESSION_KEY);
+  window.localStorage.removeItem("accessToken");
   window.localStorage.removeItem("kfpcl_token");
+  window.localStorage.removeItem("refreshToken");
   window.localStorage.removeItem("kfpcl_refresh_token");
   window.localStorage.removeItem("kfpcl_user_email");
   window.localStorage.removeItem("kfpcl_user_phone");

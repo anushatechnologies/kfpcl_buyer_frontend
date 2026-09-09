@@ -1,5 +1,6 @@
 import apiClient from './client';
 import { smsService } from './smsService';
+import { writeStoredSession } from '@/app/lib/session';
 
 export interface AuthUser {
   id: number | string;
@@ -292,14 +293,48 @@ export const authApi = {
       throw new Error(backendData?.message || 'Invalid OTP code.');
     }
 
+    const accessToken = backendData?.accessToken || backendData?.token;
+    const refreshToken = backendData?.refreshToken;
+    const user = backendData?.user;
+
+    if (accessToken && typeof window !== 'undefined') {
+      const sessionData = {
+        accessToken,
+        refreshToken: refreshToken || '',
+        customerId: Number(user?.id) || 1,
+        phoneNumber: user?.phoneNumber || user?.phone || cleanPhone,
+        name: user?.fullName || user?.name || 'Buyer',
+        email: user?.email || '',
+        roles: user?.role || user?.roles || 'buyer',
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      };
+      writeStoredSession(sessionData);
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('kfpcl_token', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+        localStorage.setItem('kfpcl_refresh_token', refreshToken);
+      }
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('buyer', JSON.stringify(user));
+      }
+      if (sessionData.phoneNumber) {
+        localStorage.setItem('kfpcl_user_phone', sessionData.phoneNumber);
+      }
+      if (sessionData.email) {
+        localStorage.setItem('kfpcl_user_email', sessionData.email);
+      }
+    }
+
     return {
       success: true,
       verified: true,
       isRegistered: Boolean(backendData?.isRegistered ?? backendData?.exists ?? backendData?.user),
       verificationToken: backendData?.verificationToken,
-      accessToken: backendData?.accessToken || backendData?.token,
-      refreshToken: backendData?.refreshToken,
-      user: backendData?.user,
+      accessToken,
+      refreshToken,
+      user,
     };
   },
 
@@ -479,6 +514,18 @@ export const authApi = {
     }
 
     if (typeof window !== "undefined") {
+      const userObj = data?.user;
+      const sessionData = {
+        accessToken,
+        refreshToken: refreshToken || "",
+        customerId: Number(userObj?.id) || 1,
+        phoneNumber: userObj?.phoneNumber || userObj?.phone || "",
+        name: userObj?.fullName || userObj?.name || payload.fullName || "Buyer",
+        email: userObj?.email || payload.email || "",
+        roles: userObj?.role || userObj?.roles || "buyer",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      };
+      writeStoredSession(sessionData);
       localStorage.setItem("accessToken", accessToken);
       localStorage.setItem("kfpcl_token", accessToken);
       if (refreshToken) {
@@ -487,6 +534,7 @@ export const authApi = {
       }
       if (data?.user) {
         localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("buyer", JSON.stringify(data.user));
       }
     }
 

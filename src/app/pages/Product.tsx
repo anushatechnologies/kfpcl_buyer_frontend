@@ -328,7 +328,14 @@ export function Product() {
     event.preventDefault();
 
     if (!product) return;
-    if (!session?.accessToken) {
+    // Prefer Zustand session; fall back to localStorage in case React hasn't re-rendered
+    // after writeStoredSession fired SESSION_UPDATED_EVENT (race-condition guard)
+    const activeToken =
+      session?.accessToken ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token')
+        : null);
+    if (!activeToken || activeToken === 'undefined' || activeToken === 'null') {
       toast.error("Please sign in to submit an RFQ.");
       openAuthModal();
       return;

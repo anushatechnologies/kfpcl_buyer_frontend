@@ -237,7 +237,14 @@ export function RFQPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
-    if (!isAuthenticated) {
+    // Prefer Zustand session; fall back to localStorage in case React hasn't re-rendered
+    // after writeStoredSession fired SESSION_UPDATED_EVENT (race-condition guard)
+    const activeToken =
+      session?.accessToken ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token')
+        : null);
+    if (!activeToken || activeToken === 'undefined' || activeToken === 'null') {
       toast.info("Please sign in to broadcast your RFQ to verified suppliers.");
       openAuthModal();
       return;

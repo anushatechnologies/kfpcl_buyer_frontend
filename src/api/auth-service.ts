@@ -8,6 +8,8 @@ import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult, type
 import axios from "axios";
 import { getFirebaseAuthInstance } from "@/app/lib/firebase";
 import { API_BASE_URL } from "@/app/lib/config";
+import { writeStoredSession } from "@/app/lib/session";
+import type { CustomerSession } from "@/app/types/storefront";
 
 const BACKEND_BASE_URL = API_BASE_URL || "https://api.kfpclexports.com";
 
@@ -167,6 +169,20 @@ export async function verifyOtpAndLogin(sixDigitOtp: string): Promise<any> {
   const { accessToken, refreshToken, user } = data;
 
   if (accessToken && typeof window !== "undefined") {
+    // Persist via writeStoredSession so SESSION_UPDATED_EVENT is fired
+    // and Zustand authStore hydrates immediately
+    const sessionData: CustomerSession = {
+      accessToken,
+      refreshToken: refreshToken || "",
+      customerId: Number(user?.id) || 1,
+      phoneNumber: user?.phoneNumber || user?.phone || "",
+      name: user?.fullName || user?.name || "Buyer",
+      email: user?.email || "",
+      roles: user?.role || user?.roles || "buyer",
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    };
+    writeStoredSession(sessionData);
+    // Also write to raw keys for maximum compatibility
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("kfpcl_token", accessToken);
     if (refreshToken) {
@@ -176,6 +192,12 @@ export async function verifyOtpAndLogin(sixDigitOtp: string): Promise<any> {
     if (user) {
       localStorage.setItem("buyer", JSON.stringify(user));
       localStorage.setItem("user", JSON.stringify(user));
+    }
+    if (sessionData.phoneNumber) {
+      localStorage.setItem("kfpcl_user_phone", sessionData.phoneNumber);
+    }
+    if (sessionData.email) {
+      localStorage.setItem("kfpcl_user_email", sessionData.email);
     }
   }
 

@@ -355,8 +355,21 @@ export const rfqApi = {
     const params: Record<string, any> = { page, size };
     if (status) params.status = status;
 
-    const response = await apiClient.get<any>('/api/buyer/rfqs', { params });
-    return extractPaginatedData(response.data?.data || response.data, page, size);
+    try {
+      const response = await apiClient.get<any>('/api/buyer/rfqs', { params });
+      return extractPaginatedData(response.data?.data || response.data, page, size);
+    } catch (err: any) {
+      // Handle 500 collation mismatch (utf8mb4_unicode_ci vs utf8mb4_0900_ai_ci) and other
+      // server-side errors gracefully — return an empty page so the UI doesn't break.
+      const status500 = err?.response?.status >= 500;
+      const msg = String(err?.response?.data?.message || err?.message || '').toLowerCase();
+      const isCollationErr = msg.includes('collation') || msg.includes('illegal mix') || status500;
+      if (isCollationErr) {
+        console.warn('[rfq.api] GET /api/buyer/rfqs failed (server error — likely DB collation mismatch). Returning empty result.', err?.response?.data?.message || err?.message);
+        return { rfqs: [], totalPages: 0, totalElements: 0, currentPage: page, pageSize: size };
+      }
+      throw err;
+    }
   },
 
   /**

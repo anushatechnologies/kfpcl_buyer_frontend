@@ -40,8 +40,12 @@ apiClient.interceptors.request.use(
       token = localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token') || undefined;
     }
 
+    if (token === 'undefined' || token === 'null' || !token?.trim()) {
+      token = undefined;
+    }
+
     if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token.trim()}`;
     }
 
     // Retain X-User-Email and X-Phone-Number for buyer endpoints compatibility
@@ -60,7 +64,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Auto-refresh on 401
+// Response Interceptor: Auto-refresh on 401 without wiping session on background failures
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -75,17 +79,20 @@ apiClient.interceptors.response.use(
     const isAuthEndpoint =
       requestUrl.includes('/api/auth/login') ||
       requestUrl.includes('/api/auth/refresh') ||
-       requestUrl.includes('/api/auth/verify-otp') ||
-       requestUrl.includes('/api/auth/signup') ||
-       requestUrl.includes('/api/auth/send-otp') ||
-       requestUrl.includes('/api/auth/firebase-login');
+      requestUrl.includes('/api/auth/verify-otp') ||
+      requestUrl.includes('/api/auth/signup') ||
+      requestUrl.includes('/api/auth/send-otp') ||
+      requestUrl.includes('/api/auth/firebase-login');
 
     if (error.response.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const session = readStoredSession();
-      const refreshToken = session?.refreshToken || (typeof window !== 'undefined' ? (localStorage.getItem('refreshToken') || localStorage.getItem('kfpcl_refresh_token')) : null);
+      const refreshToken =
+        session?.refreshToken ||
+        (typeof window !== 'undefined'
+          ? localStorage.getItem('refreshToken') || localStorage.getItem('kfpcl_refresh_token')
+          : null);
 
-      if (!refreshToken) {
-        clearStoredSession();
+      if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') {
         return Promise.reject(error);
       }
 
@@ -130,7 +137,8 @@ apiClient.interceptors.response.use(
         }
       } catch (refreshErr) {
         processQueue(refreshErr, null);
-        clearStoredSession();
+        // Do not wipe the user's stored session on background refresh failure;
+        // let the UI prompt re-authentication via modal when user performs an action
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;

@@ -66,10 +66,17 @@ function syncToLegacyStore(session: CustomerSession | null) {
 
 function getInitialSession(): CustomerSession | null {
   const session = readStoredSession();
-  if (session) return session;
+  if (session && session.accessToken) return session;
 
   if (typeof window !== "undefined") {
     try {
+      const directToken =
+        localStorage.getItem("accessToken") || localStorage.getItem("kfpcl_token");
+      if (directToken && directToken !== "undefined" && directToken !== "null" && directToken.trim()) {
+        const recovered = readStoredSession();
+        if (recovered && recovered.accessToken) return recovered;
+      }
+
       const legacyState = useLegacyAuthStore.getState();
       if (legacyState?.isAuthenticated && legacyState?.user && legacyState?.token) {
         return {
@@ -139,23 +146,31 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   hydrateFromStorage: () => {
     const session = readStoredSession();
-    if (session) {
+    if (session && session.accessToken) {
       syncToLegacyStore(session);
       set({ session });
-    } else {
-      const legacyState = useLegacyAuthStore.getState();
-      if (legacyState.isAuthenticated && legacyState.user && legacyState.token) {
-        const inferredSession: CustomerSession = {
-          accessToken: legacyState.token,
-          customerId: Number(legacyState.user.id) || 1,
-          phoneNumber: legacyState.user.phone || "",
-          name: legacyState.user.name,
-          email: legacyState.user.email,
-          roles: legacyState.user.role,
-        };
-        writeStoredSession(inferredSession);
-        set({ session: inferredSession });
-      } else {
+      return;
+    }
+
+    const legacyState = useLegacyAuthStore.getState();
+    if (legacyState.isAuthenticated && legacyState.user && legacyState.token) {
+      const inferredSession: CustomerSession = {
+        accessToken: legacyState.token,
+        customerId: Number(legacyState.user.id) || 1,
+        phoneNumber: legacyState.user.phone || "",
+        name: legacyState.user.name,
+        email: legacyState.user.email,
+        roles: legacyState.user.role,
+      };
+      writeStoredSession(inferredSession);
+      set({ session: inferredSession });
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const directToken =
+        localStorage.getItem("accessToken") || localStorage.getItem("kfpcl_token");
+      if (!directToken || directToken === "undefined" || directToken === "null") {
         set({ session: null });
       }
     }
