@@ -11,8 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { authApi } from "@/api/auth.api";
-import { checkPhoneStatus, sendRealSmsOtp, verifyOtpAndLogin } from "@/api/auth-service";
-import { firebaseSendOtp, firebaseVerifyOtp, resetFirebaseSession } from "@/api/firebaseAuth";
+import { checkPhoneStatus, sendRealSmsOtp, verifyOtpAndLogin, resetRecaptchaVerifier } from "@/api/auth-service";
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "@/store/authStore";
 import { useAuthStore as useStorefrontAuthStore } from "@/app/store/authStore";
@@ -46,7 +45,7 @@ export function LoginPage() {
   // Clean up reCAPTCHA on unmount or navigation
   useEffect(() => {
     return () => {
-      resetFirebaseSession();
+      resetRecaptchaVerifier();
     };
   }, []);
 
@@ -91,7 +90,7 @@ export function LoginPage() {
       const msg = err?.response?.data?.message || err?.message || "Failed to send OTP via SMS. Please try again.";
       setErrorMessage(msg);
       toast.error(msg);
-      resetFirebaseSession();
+      resetRecaptchaVerifier();
     } finally {
       setIsLoading(false);
     }
@@ -113,7 +112,7 @@ export function LoginPage() {
       const msg = err?.response?.data?.message || err?.message || "Failed to resend verification code via SMS.";
       setErrorMessage(msg);
       toast.error(msg);
-      resetFirebaseSession();
+      resetRecaptchaVerifier();
     } finally {
       setIsLoading(false);
     }
@@ -182,9 +181,6 @@ export function LoginPage() {
 
   return (
     <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center px-4 py-12 bg-gradient-to-b from-[#F7F9F8] to-white">
-      {/* Invisible reCAPTCHA container for Firebase Phone Auth */}
-      <div id="recaptcha-container" />
-
       <div className="w-full max-w-md rounded-3xl border border-gray-200/90 bg-white p-7 sm:p-8 shadow-[0_20px_60px_rgba(10,22,40,0.08)]">
         {/* Brand Header */}
         <div className="text-center mb-6">
@@ -270,7 +266,7 @@ export function LoginPage() {
                     setStep("phone");
                     setOtp("");
                     setErrorMessage("");
-                    resetFirebaseSession();
+                    resetRecaptchaVerifier();
                   }}
                   className="text-xs text-[#0A4D3C] font-semibold hover:underline"
                 >

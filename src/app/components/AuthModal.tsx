@@ -16,8 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { authApi } from "@/api/auth.api";
-import { checkPhoneStatus, sendRealSmsOtp, verifyOtpAndLogin } from "@/api/auth-service";
-import { resetFirebaseSession } from "@/api/firebaseAuth";
+import { checkPhoneStatus, sendRealSmsOtp, verifyOtpAndLogin, resetRecaptchaVerifier } from "@/api/auth-service";
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "../store/authStore";
 import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
@@ -73,7 +72,7 @@ export function AuthModal() {
       setIsLoading(false);
       setCooldown(0);
       setOtpMethod("firebase");
-      resetFirebaseSession();
+      resetRecaptchaVerifier();
     }
   }, [isOpen]);
 
@@ -398,7 +397,7 @@ export function AuthModal() {
                         setStep("phone");
                         setOtp("");
                         setErrorMessage("");
-                        resetFirebaseSession();
+                        resetRecaptchaVerifier();
                       }}
                       className="text-xs text-[#0A4D3C] font-semibold hover:underline"
                     >

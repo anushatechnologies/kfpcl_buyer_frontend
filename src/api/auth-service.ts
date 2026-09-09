@@ -21,32 +21,47 @@ declare global {
 }
 
 /**
+ * Helper to reset/clear any existing reCAPTCHA instance and its DOM container
+ */
+export function resetRecaptchaVerifier(): void {
+  if (typeof window !== "undefined") {
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (_) {}
+      window.recaptchaVerifier = null;
+    }
+    const target = document.getElementById("kfpcl-recaptcha-container");
+    if (target) {
+      target.remove();
+    }
+  }
+}
+
+/**
  * Helper to initialize 100% INVISIBLE background verifier
  */
-export function getInvisibleVerifier(containerId = "kfpcl-recaptcha-container"): RecaptchaVerifier {
+export function getInvisibleVerifier(): RecaptchaVerifier {
+  // If an active verifier already exists in window, reuse it
+  if (typeof window !== "undefined" && window.recaptchaVerifier) {
+    return window.recaptchaVerifier;
+  }
+
   const auth = getFirebaseAuthInstance();
   auth.languageCode = "en";
 
-  // Clean up any existing instance to avoid duplicate renders
-  if (typeof window !== "undefined" && window.recaptchaVerifier) {
-    try {
-      window.recaptchaVerifier.clear();
-    } catch (_) {}
-    window.recaptchaVerifier = null;
-  }
+  // Ensure any previous stale DOM container is completely removed
+  resetRecaptchaVerifier();
 
-  // Ensure dedicated isolated container div exists in the DOM
+  // Create a brand-new, clean isolated container element
   if (typeof document !== "undefined") {
-    let target = document.getElementById("kfpcl-recaptcha-container");
-    if (!target) {
-      target = document.createElement("div");
-      target.id = "kfpcl-recaptcha-container";
-      target.style.position = "fixed";
-      target.style.bottom = "0";
-      target.style.right = "0";
-      target.style.zIndex = "-1";
-      document.body.appendChild(target);
-    }
+    const container = document.createElement("div");
+    container.id = "kfpcl-recaptcha-container";
+    container.style.position = "fixed";
+    container.style.bottom = "0";
+    container.style.right = "0";
+    container.style.zIndex = "-1";
+    document.body.appendChild(container);
   }
 
   window.recaptchaVerifier = new RecaptchaVerifier(auth, "kfpcl-recaptcha-container", {
@@ -56,9 +71,7 @@ export function getInvisibleVerifier(containerId = "kfpcl-recaptcha-container"):
     },
     "expired-callback": () => {
       console.warn("reCAPTCHA expired. Resetting verifier.");
-      if (typeof window !== "undefined") {
-        window.recaptchaVerifier = null;
-      }
+      resetRecaptchaVerifier();
     },
   });
 
@@ -97,19 +110,14 @@ export async function sendRealSmsOtp(rawPhone: string, buttonElementId = "send-o
 
     const fullPhoneNumber = `+91${cleanPhone}`;
     const auth = getFirebaseAuthInstance();
-    const verifier = getInvisibleVerifier(buttonElementId);
+    const verifier = getInvisibleVerifier();
 
     confirmationResult = await signInWithPhoneNumber(auth, fullPhoneNumber, verifier);
     return { success: true, phone: cleanPhone };
   } catch (error: any) {
     console.error("Firebase SMS OTP Error details:", error?.code, error?.message, error);
-    // Reset verifier if network/token failed
-    if (typeof window !== "undefined" && window.recaptchaVerifier) {
-      try {
-        window.recaptchaVerifier.clear();
-      } catch (_) {}
-      window.recaptchaVerifier = null;
-    }
+    // Reset verifier and clean up container if network/token failed
+    resetRecaptchaVerifier();
 
     let friendly = error?.message || "Failed to send SMS OTP.";
     const code = error?.code || "";
