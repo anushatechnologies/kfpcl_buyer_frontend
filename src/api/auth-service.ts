@@ -23,7 +23,7 @@ declare global {
 /**
  * Helper to initialize 100% INVISIBLE background verifier
  */
-export function getInvisibleVerifier(buttonElementId = "send-otp-btn"): RecaptchaVerifier {
+export function getInvisibleVerifier(containerId = "kfpcl-recaptcha-container"): RecaptchaVerifier {
   const auth = getFirebaseAuthInstance();
   auth.languageCode = "en";
 
@@ -35,17 +35,21 @@ export function getInvisibleVerifier(buttonElementId = "send-otp-btn"): Recaptch
     window.recaptchaVerifier = null;
   }
 
-  // Ensure button or container element exists in the DOM
+  // Ensure dedicated isolated container div exists in the DOM
   if (typeof document !== "undefined") {
-    let target = document.getElementById(buttonElementId);
+    let target = document.getElementById("kfpcl-recaptcha-container");
     if (!target) {
       target = document.createElement("div");
-      target.id = buttonElementId;
+      target.id = "kfpcl-recaptcha-container";
+      target.style.position = "fixed";
+      target.style.bottom = "0";
+      target.style.right = "0";
+      target.style.zIndex = "-1";
       document.body.appendChild(target);
     }
   }
 
-  window.recaptchaVerifier = new RecaptchaVerifier(auth, buttonElementId, {
+  window.recaptchaVerifier = new RecaptchaVerifier(auth, "kfpcl-recaptcha-container", {
     size: "invisible", // Zero captcha, zero puzzle for the user
     callback: () => {
       console.log("Invisible reCAPTCHA verified successfully in background");
@@ -98,7 +102,7 @@ export async function sendRealSmsOtp(rawPhone: string, buttonElementId = "send-o
     confirmationResult = await signInWithPhoneNumber(auth, fullPhoneNumber, verifier);
     return { success: true, phone: cleanPhone };
   } catch (error: any) {
-    console.error("SMS OTP Error:", error);
+    console.error("Firebase SMS OTP Error details:", error?.code, error?.message, error);
     // Reset verifier if network/token failed
     if (typeof window !== "undefined" && window.recaptchaVerifier) {
       try {
@@ -106,7 +110,26 @@ export async function sendRealSmsOtp(rawPhone: string, buttonElementId = "send-o
       } catch (_) {}
       window.recaptchaVerifier = null;
     }
-    throw new Error(error.message || "Failed to send SMS OTP.");
+
+    let friendly = error?.message || "Failed to send SMS OTP.";
+    const code = error?.code || "";
+    const msg = error?.message || "";
+
+    if (code === "auth/too-many-requests" || msg.includes("TOO_MANY_ATTEMPTS_TRY_LATER")) {
+      friendly = "Too many OTP requests. Firebase SMS limit reached for today or this phone number. Please wait a while or check Firebase Console.";
+    } else if (code === "auth/quota-exceeded" || msg.includes("QUOTA_EXCEEDED")) {
+      friendly = "Daily SMS quota exceeded on Firebase project (Spark free tier is 10 SMS/day). Upgrade to Blaze plan to send unlimited SMS.";
+    } else if (code === "auth/invalid-phone-number") {
+      friendly = "Invalid phone number. Please enter a valid 10-digit Indian mobile number.";
+    } else if (code === "auth/captcha-check-failed") {
+      friendly = "Background verification failed. Please refresh the page and try again.";
+    } else if (code === "auth/unauthorized-domain") {
+      friendly = "Domain not authorized in Firebase Console (Authentication > Settings > Authorized domains).";
+    } else if (code === "auth/billing-not-enabled") {
+      friendly = "Firebase Phone Auth requires a linked Cloud Billing account for SMS delivery.";
+    }
+
+    throw new Error(friendly);
   }
 }
 

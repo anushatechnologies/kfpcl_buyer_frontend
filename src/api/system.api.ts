@@ -39,8 +39,7 @@ export const systemApi = {
           deviceType,
         });
         return { success: altResponse.data?.success !== false };
-      } catch (err) {
-        console.warn('FCM token registration failed:', err);
+      } catch {
         return { success: false };
       }
     }
