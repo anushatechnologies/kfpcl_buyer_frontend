@@ -21,18 +21,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { authApi } from "@/api/auth.api";
+import { sendRealSmsOtp, verifyOtpForRegistration, submitBuyerRegistration } from "@/api/auth-service";
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "@/store/authStore";
 
 const BUSINESS_TYPES = [
-  "Wholesaler / Trader",
-  "Distributor / Stockist",
-  "Retailer / Supermarket",
-  "Food Processing & Manufacturing",
-  "Exporter / Importer",
-  "Farmer Producer Org (FPO) / Aggregator",
-  "HoReCa / Commercial Kitchen",
-  "Other Commercial Enterprise",
+  { value: "WHOLESALER", label: "Wholesaler" },
+  { value: "TRADER", label: "Trader" },
+  { value: "RETAILER", label: "Retailer" },
+  { value: "OTHER", label: "Other Commercial Enterprise" },
 ];
 
 const INDIAN_STATES = [
@@ -116,6 +113,68 @@ export function CustomerSignup() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const panFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Phone OTP Verification State (Real SMS OTP with invisible background check)
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setOtpCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
+
+  const handleSendRegOtp = async () => {
+    const cleanPhone = mobileNumber.replace(/\D/g, "").slice(-10);
+    if (cleanPhone.length !== 10) {
+      setFieldErrors((p) => ({ ...p, mobileNumber: "Please enter a valid 10-digit Indian mobile number" }));
+      toast.error("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    setIsSendingOtp(true);
+    setErrorMessage("");
+    try {
+      await sendRealSmsOtp(cleanPhone, "send-reg-otp-btn");
+      setOtpSent(true);
+      setOtpCooldown(60);
+      toast.success(`Verification OTP sent via SMS to +91 ${cleanPhone}`);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to send verification OTP via SMS.";
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyRegOtp = async () => {
+    const cleanOtp = otp.trim();
+    if (cleanOtp.length !== 6) {
+      toast.error("Please enter the complete 6-digit OTP code");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    setErrorMessage("");
+    try {
+      await verifyOtpForRegistration(cleanOtp);
+      setIsPhoneVerified(true);
+      toast.success("Phone number verified successfully! You can now complete your details.");
+    } catch (err: any) {
+      const msg = err?.message || "Invalid OTP verification code.";
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -263,6 +322,13 @@ export function CustomerSignup() {
     e.preventDefault();
     setErrorMessage("");
 
+    if (!isPhoneVerified) {
+      const msg = "Please verify your phone number OTP first.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      return;
+    }
+
     if (!validateForm()) {
       setErrorMessage("Please fill in all required fields accurately.");
       return;
@@ -274,57 +340,33 @@ export function CustomerSignup() {
       const cleanPhone = mobileNumber.replace(/\D/g, "").slice(-10);
       const cleanGstin = gstin.trim().toUpperCase();
       const cleanPan = panNumber.trim().toUpperCase();
-      const panImageUrl = panPreview || (panFile ? URL.createObjectURL(panFile) : "");
 
-      // Register Buyer
-      const res = await authApi.register({
-        name: fullName.trim(),
+      // Normalize business type to WHOLESALER | TRADER | RETAILER | OTHER
+      let normalizedType = "OTHER";
+      const bt = (businessType || "").toUpperCase();
+      if (bt.includes("WHOLESALE")) normalizedType = "WHOLESALER";
+      else if (bt.includes("TRADE")) normalizedType = "TRADER";
+      else if (bt.includes("RETAIL") || bt.includes("SUPERMARKET")) normalizedType = "RETAILER";
+      else if (["WHOLESALER", "TRADER", "RETAILER", "OTHER"].includes(bt)) normalizedType = bt;
+
+      // Submit multipart form data to POST /api/v1/register
+      await submitBuyerRegistration({
         fullName: fullName.trim(),
-        phone: cleanPhone,
-        phoneNumber: cleanPhone,
+        mobileNumber: cleanPhone,
         email: email.trim(),
         companyName: businessName.trim(),
-        businessName: businessName.trim(),
-        businessType,
-        state,
+        businessType: normalizedType,
+        state: state.trim(),
         city: city.trim(),
-        gstin: cleanGstin,
         panNumber: cleanPan,
-        panCardUrl: panImageUrl,
-        role: "buyer",
+        panCardFile: panFile,
+        gstin: cleanGstin || undefined,
+        gstinPhotoFile: gstFile || undefined,
       });
 
-      if (res.user && res.accessToken) {
-        setAuthFromBackend(res.user, res.accessToken, res.refreshToken || "");
-      } else {
-        // Direct local session fallback
-        setUser(
-          {
-            id: `buyer_${cleanPhone}`,
-            name: fullName.trim(),
-            email: email.trim(),
-            phone: cleanPhone,
-            role: "buyer",
-            isVerified: true,
-            gstVerified: true,
-            company: {
-              id: `company-${Date.now()}`,
-              name: businessName.trim(),
-              gstNumber: cleanGstin,
-              panNumber: cleanPan,
-              panCardUrl: panImageUrl,
-              address: { street: "", city: city.trim(), state, pincode: "", country: "India" },
-              industry: businessType,
-            },
-            createdAt: new Date().toISOString(),
-          },
-          res.accessToken || `local-${Date.now()}`
-        );
-      }
-
-      toast.success("Account created successfully! Welcome to KFPCL.");
+      toast.success("Registration submitted successfully! Pending admin verification.");
       systemApi.saveFcmToken(`web-${Date.now()}`).catch(() => {});
-      navigate(redirectTarget, { replace: true });
+      navigate("/login", { replace: true });
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
@@ -417,39 +459,112 @@ export function CustomerSignup() {
                 )}
               </div>
 
-              {/* 2. Mobile number */}
-              <div>
-                <label htmlFor="mobileNumber" className={labelClass}>
-                  <span className="font-bold text-[#0A4D3C]">2.</span>
-                  <span>Mobile Number</span>
-                  <span className="text-red-500">*</span>
-                </label>
-                <div className="relative flex items-center">
-                  <div className="absolute left-3.5 flex items-center gap-1 pointer-events-none text-gray-500 font-semibold text-xs border-r border-gray-200 pr-2">
-                    <Phone className="h-3.5 w-3.5 text-gray-400" />
-                    <span>+91</span>
-                  </div>
-                  <input
-                    id="mobileNumber"
-                    type="tel"
-                    maxLength={10}
-                    value={mobileNumber}
-                    onChange={(e) => {
-                      const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
-                      setMobileNumber(cleaned);
-                      if (fieldErrors.mobileNumber) {
-                        setFieldErrors((p) => ({ ...p, mobileNumber: "" }));
-                      }
-                    }}
-                    placeholder="10-digit mobile number"
-                    className={`${inputClass(!!fieldErrors.mobileNumber)} pl-[4.5rem] font-mono`}
-                  />
+              {/* 2. Mobile number & Real SMS OTP Verification */}
+              <div className="sm:col-span-2 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="mobileNumber" className={labelClass}>
+                    <span className="font-bold text-[#0A4D3C]">2.</span>
+                    <span>Mobile Number &amp; Verification</span>
+                    <span className="text-red-500">*</span>
+                  </label>
+                  {isPhoneVerified && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-sm">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Phone Verified
+                    </span>
+                  )}
                 </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1 flex items-center">
+                    <div className="absolute left-3.5 flex items-center gap-1 pointer-events-none text-gray-500 font-semibold text-xs border-r border-gray-200 pr-2">
+                      <Phone className="h-3.5 w-3.5 text-gray-400" />
+                      <span>+91</span>
+                    </div>
+                    <input
+                      id="mobileNumber"
+                      type="tel"
+                      disabled={isPhoneVerified || isSendingOtp}
+                      maxLength={10}
+                      value={mobileNumber}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setMobileNumber(cleaned);
+                        if (fieldErrors.mobileNumber) {
+                          setFieldErrors((p) => ({ ...p, mobileNumber: "" }));
+                        }
+                      }}
+                      placeholder="10-digit mobile number"
+                      className={`${inputClass(!!fieldErrors.mobileNumber)} pl-[4.5rem] font-mono ${
+                        isPhoneVerified ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
+                      }`}
+                    />
+                  </div>
+
+                  {!isPhoneVerified && (
+                    <button
+                      id="send-reg-otp-btn"
+                      type="button"
+                      disabled={isSendingOtp || otpCooldown > 0 || mobileNumber.replace(/\D/g, "").length !== 10}
+                      onClick={handleSendRegOtp}
+                      className="px-5 py-2.5 rounded-xl bg-[#0A4D3C] text-white text-xs font-bold shadow-sm hover:bg-[#0E5E4A] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 whitespace-nowrap"
+                    >
+                      {isSendingOtp ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Sending OTP...</span>
+                        </>
+                      ) : otpCooldown > 0 ? (
+                        <span>Resend in {otpCooldown}s</span>
+                      ) : (
+                        <span>{otpSent ? "Resend OTP" : "Send OTP"}</span>
+                      )}
+                    </button>
+                  )}
+                </div>
+
                 {fieldErrors.mobileNumber && (
                   <p className={errorClass}>
                     <AlertCircle className="h-3 w-3" />
                     {fieldErrors.mobileNumber}
                   </p>
+                )}
+
+                {/* OTP input & verification box */}
+                {!isPhoneVerified && otpSent && (
+                  <div className="mt-3 pt-3 border-t border-emerald-200/60 animate-fade-in">
+                    <p className="text-xs text-gray-700 font-medium mb-2">
+                      Enter the 6-digit SMS OTP sent to <strong className="text-gray-900">+91 {mobileNumber}</strong>:
+                    </p>
+                    <div className="flex items-center gap-2 max-w-sm">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="• • • • • •"
+                        className="w-36 h-10 px-3 text-center tracking-widest text-base font-bold rounded-xl border border-gray-300 focus:border-[#0A4D3C] focus:ring-2 focus:ring-[#0A4D3C]/20 outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={isVerifyingOtp || otp.trim().length !== 6}
+                        onClick={handleVerifyRegOtp}
+                        className="px-4 py-2 rounded-xl bg-[#0A4D3C] text-white text-xs font-bold shadow-sm hover:bg-[#0E5E4A] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        {isVerifyingOtp ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            <span>Verifying...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span>Verify OTP</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -551,8 +666,8 @@ export function CustomerSignup() {
                   >
                     <option value="" disabled>Select business type</option>
                     {BUSINESS_TYPES.map((bt) => (
-                      <option key={bt} value={bt}>
-                        {bt}
+                      <option key={bt.value} value={bt.value}>
+                        {bt.label}
                       </option>
                     ))}
                   </select>

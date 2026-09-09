@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { authApi } from "@/api/auth.api";
+import { checkPhoneStatus, sendRealSmsOtp, verifyOtpAndLogin } from "@/api/auth-service";
 import { firebaseSendOtp, firebaseVerifyOtp, resetFirebaseSession } from "@/api/firebaseAuth";
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "@/store/authStore";
@@ -71,20 +72,21 @@ export function LoginPage() {
     setFallbackOtp("");
 
     try {
-      // 1. Check if phone is registered
-      const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false, isRegistered: false }));
-      setIsRegistered(Boolean(checkResult.isRegistered ?? checkResult.exists));
+      // 1. Check if phone is registered in DB
+      const status = await checkPhoneStatus(clean10Digits);
+      setIsRegistered(status.isRegistered);
 
-      if (HAS_FIREBASE_CONFIG) {
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        setOtpMethod("firebase");
-        toast.success(result.message);
+      if (status.isRegistered) {
+        // Registered -> Send real SMS OTP with invisible background check
+        await sendRealSmsOtp(clean10Digits, "send-otp-btn");
+        setStep("otp");
+        setCooldown(60);
+        toast.success(`OTP sent to +91 ${clean10Digits} via SMS`);
       } else {
-        throw new Error("Firebase Authentication is not configured.");
+        // Not registered -> Redirect to Registration Form
+        toast.info("Phone number not registered. Please complete registration.");
+        navigate(`/register?phone=${clean10Digits}`);
       }
-
-      setStep("otp");
-      setCooldown(60);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to send OTP via SMS. Please try again.";
       setErrorMessage(msg);
@@ -102,17 +104,11 @@ export function LoginPage() {
     setIsLoading(true);
     setErrorMessage("");
     setFallbackOtp("");
-    resetFirebaseSession();
 
     try {
-      if (HAS_FIREBASE_CONFIG) {
-        const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
-        setOtpMethod("firebase");
-        toast.success(`New OTP sent — ${result.message}`);
-      } else {
-        throw new Error("Firebase Authentication is not configured.");
-      }
+      await sendRealSmsOtp(clean10Digits, "send-otp-btn");
       setCooldown(60);
+      toast.success(`New OTP sent via SMS to +91 ${clean10Digits}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to resend verification code via SMS.";
       setErrorMessage(msg);
@@ -150,6 +146,7 @@ export function LoginPage() {
       }
       if (res.user) {
         localStorage.setItem("user", JSON.stringify(res.user));
+        localStorage.setItem("buyer", JSON.stringify(res.user));
       }
     }
 
@@ -172,60 +169,10 @@ export function LoginPage() {
     setErrorMessage("");
 
     try {
-      if ((otpMethod === "firebase" || (typeof window !== "undefined" && window.confirmationResult)) && HAS_FIREBASE_CONFIG) {
-        // 1. Verify code with Firebase
-        const fbResult = await firebaseVerifyOtp(cleanOtp);
-
-        // 2. Call KFPCL Backend to exchange Firebase ID Token for backend session tokens
-        const loginRes = await authApi.firebaseLogin({
-          idToken: fbResult.idToken,
-          fullName: "",
-          fcmToken: "",
-        });
-
-        completeUserSession(loginRes, clean10Digits);
-        return;
-      }
-
-      // Fallback: non-Firebase backend flow
-      let registered = isRegistered;
-      if (!registered) {
-        const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false, isRegistered: false }));
-        registered = Boolean(checkResult.isRegistered ?? checkResult.exists);
-        setIsRegistered(registered);
-      }
-
-      if (registered) {
-        const loginRes = await authApi.login({
-          phoneNumber: clean10Digits,
-          otp: cleanOtp,
-        });
-        completeUserSession(loginRes, clean10Digits);
-      } else {
-        const verifyRes = await authApi.verifyOtp(clean10Digits, cleanOtp);
-
-        if ((verifyRes.isRegistered || registered) && verifyRes.accessToken && verifyRes.user) {
-          completeUserSession(
-            {
-              accessToken: verifyRes.accessToken,
-              refreshToken: verifyRes.refreshToken || "",
-              user: verifyRes.user,
-            },
-            clean10Digits
-          );
-        } else if (verifyRes.verificationToken) {
-          toast.info("Phone verified! Please complete your business registration details.");
-          navigate(
-            `/signup?phone=${encodeURIComponent(clean10Digits)}&token=${encodeURIComponent(
-              verifyRes.verificationToken
-            )}&redirect=${encodeURIComponent(redirectTarget)}`
-          );
-        } else {
-          throw new Error("Verification failed. Please request a new OTP.");
-        }
-      }
+      const { accessToken, refreshToken, user } = await verifyOtpAndLogin(cleanOtp);
+      completeUserSession({ accessToken, refreshToken, user }, clean10Digits);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || "Invalid OTP code. Please check and retry.";
+      const msg = err?.response?.data?.message || err?.message || "Invalid OTP or login failed.";
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
@@ -291,6 +238,7 @@ export function LoginPage() {
             </div>
 
             <button
+              id="send-otp-btn"
               type="submit"
               disabled={isLoading || phoneNumber.replace(/\D/g, "").length !== 10}
               className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A4D3C] py-3 text-sm font-bold text-white shadow-md shadow-[#0A4D3C]/20 transition hover:bg-[#0E5E4A] disabled:opacity-50 disabled:cursor-not-allowed"
