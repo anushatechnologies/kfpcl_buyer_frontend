@@ -221,8 +221,14 @@ export function Navbar() {
   }, [navigate]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setNotifications([]);
+      setRfqReplyPopup(null);
+      return;
+    }
+
     void loadNotifications();
-    const interval = window.setInterval(loadNotifications, 25000);
+    const interval = window.setInterval(loadNotifications, 30000);
     const handleUpdate = () => {
       void loadNotifications();
     };
@@ -232,7 +238,7 @@ export function Navbar() {
       window.clearInterval(interval);
       window.removeEventListener("kfpcl:notifications-updated", handleUpdate);
     };
-  }, [loadNotifications, session?.accessToken, legacyIsAuthenticated]);
+  }, [isAuthenticated, loadNotifications]);
 
   const handleMarkAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));

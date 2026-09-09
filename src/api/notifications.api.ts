@@ -46,7 +46,21 @@ function saveReadRfqReply(id: string) {
   } catch {}
 }
 
+function hasAuthToken(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const token =
+      localStorage.getItem('accessToken') ||
+      localStorage.getItem('kfpcl_token') ||
+      localStorage.getItem('kfpcl.customer.session');
+    return Boolean(token);
+  } catch {
+    return false;
+  }
+}
+
 async function fetchRfqReplyNotifications(): Promise<NotificationItem[]> {
+  if (!hasAuthToken()) return [];
   try {
     const rfqRes = await apiClient.get<any>('/api/buyer/rfqs', { params: { page: 0, size: 30 } });
     const payload = rfqRes.data?.data || rfqRes.data;
@@ -134,6 +148,15 @@ export const notificationsApi = {
    * 🔔 Fetch real notifications from /api/notifications and /api/buyer/rfqs replies
    */
   getNotifications: async (page: number = 0, size: number = 10): Promise<PaginatedNotifications> => {
+    if (!hasAuthToken()) {
+      return {
+        content: [],
+        totalPages: 0,
+        totalElements: 0,
+        page,
+        size,
+      };
+    }
     try {
       const [backendRes, rfqReplies] = await Promise.all([
         apiClient.get<any>('/api/notifications', { params: { page, size } }).catch(() => null),
@@ -201,6 +224,7 @@ export const notificationsApi = {
    * PATCH /api/notifications/{id}/read - Mark a notification as read when clicked
    */
   markAsRead: async (notificationId: string): Promise<NotificationItem | null> => {
+    if (!hasAuthToken()) return null;
     try {
       if (notificationId.startsWith('rfq-')) {
         saveReadRfqReply(notificationId);
@@ -241,6 +265,7 @@ export const notificationsApi = {
    * PATCH /api/notifications/read-all - Mark all notifications as read
    */
   markAllAsRead: async (): Promise<void> => {
+    if (!hasAuthToken()) return;
     try {
       // Mark all current RFQ replies as read in localStorage
       const replies = await fetchRfqReplyNotifications().catch(() => []);
@@ -260,6 +285,7 @@ export const notificationsApi = {
    * GET /api/notifications/unread-count - Get unread count
    */
   getUnreadCount: async (): Promise<number> => {
+    if (!hasAuthToken()) return 0;
     try {
       const res = await notificationsApi.getNotifications(0, 100);
       return res.content.filter((n) => !n.read).length;
