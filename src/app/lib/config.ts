@@ -22,11 +22,11 @@ export const FIREBASE_CONFIG = {
   // Your website domain (kfpclexports.com) belongs in Firebase Console → Authentication → Settings → Authorized Domains.
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "anushabazaar-2288e.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "anushabazaar-2288e",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:64875938387:web:0ae8c08c931e2dabba7ca6",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:64875938387:web:a9a54e1f6253e26fba7ca6",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "64875938387",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "anushabazaar-2288e.firebasestorage.app",
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://anushabazaar-2288e-default-rtdb.firebaseio.com",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-HP45RKD0BT",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-FPFNPKEK50",
 };
 
 export const HAS_FIREBASE_CONFIG = Boolean(
