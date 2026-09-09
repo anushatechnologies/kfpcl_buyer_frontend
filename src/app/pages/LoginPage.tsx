@@ -72,8 +72,8 @@ export function LoginPage() {
 
     try {
       // 1. Check if phone is registered
-      const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false }));
-      setIsRegistered(checkResult.exists);
+      const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false, isRegistered: false }));
+      setIsRegistered(Boolean(checkResult.isRegistered ?? checkResult.exists));
 
       if (HAS_FIREBASE_CONFIG) {
         const result = await firebaseSendOtp(clean10Digits, "recaptcha-container");
@@ -188,7 +188,14 @@ export function LoginPage() {
       }
 
       // Fallback: non-Firebase backend flow
-      if (isRegistered) {
+      let registered = isRegistered;
+      if (!registered) {
+        const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false, isRegistered: false }));
+        registered = Boolean(checkResult.isRegistered ?? checkResult.exists);
+        setIsRegistered(registered);
+      }
+
+      if (registered) {
         const loginRes = await authApi.login({
           phoneNumber: clean10Digits,
           otp: cleanOtp,
@@ -197,7 +204,7 @@ export function LoginPage() {
       } else {
         const verifyRes = await authApi.verifyOtp(clean10Digits, cleanOtp);
 
-        if (verifyRes.isRegistered && verifyRes.accessToken && verifyRes.refreshToken && verifyRes.user) {
+        if ((verifyRes.isRegistered || registered) && verifyRes.accessToken && verifyRes.user) {
           completeUserSession(
             {
               accessToken: verifyRes.accessToken,
@@ -209,7 +216,7 @@ export function LoginPage() {
         } else if (verifyRes.verificationToken) {
           toast.info("Phone verified! Please complete your business registration details.");
           navigate(
-            `/register?phone=${encodeURIComponent(clean10Digits)}&token=${encodeURIComponent(
+            `/signup?phone=${encodeURIComponent(clean10Digits)}&token=${encodeURIComponent(
               verifyRes.verificationToken
             )}&redirect=${encodeURIComponent(redirectTarget)}`
           );

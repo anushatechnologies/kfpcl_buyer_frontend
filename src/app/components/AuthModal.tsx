@@ -99,8 +99,8 @@ export function AuthModal() {
 
     try {
       // Check if phone is already registered (soft check — never blocks)
-      const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false }));
-      setIsRegistered(checkResult.exists);
+      const checkResult = await authApi.checkPhone(clean10Digits).catch(() => ({ exists: false, isRegistered: false }));
+      setIsRegistered(Boolean(checkResult.isRegistered ?? checkResult.exists));
 
       if (HAS_FIREBASE_CONFIG) {
         try {
@@ -293,16 +293,32 @@ export function AuthModal() {
     try {
       const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
 
-      const signupRes = await authApi.signup({
-        phoneNumber: cleanPhone,
-        verificationToken,
-        fullName: fullName.trim(),
-        email: email.trim(),
-        companyName: companyName.trim(),
-        businessType,
-        state,
-        city: city.trim(),
-      });
+      const isFirebaseToken = otpMethod === "firebase" || verificationToken.split(".").length === 3;
+
+      let signupRes: any;
+      if (isFirebaseToken && verificationToken) {
+        signupRes = await authApi.firebaseLogin({
+          idToken: verificationToken,
+          fullName: fullName.trim(),
+          email: email.trim(),
+          companyName: companyName.trim(),
+          businessType,
+          state,
+          city: city.trim(),
+          fcmToken: `web-${Date.now()}`,
+        });
+      } else {
+        signupRes = await authApi.signup({
+          phoneNumber: cleanPhone,
+          verificationToken,
+          fullName: fullName.trim(),
+          email: email.trim(),
+          companyName: companyName.trim(),
+          businessType,
+          state,
+          city: city.trim(),
+        });
+      }
 
       setSession({
         accessToken: signupRes.accessToken,
