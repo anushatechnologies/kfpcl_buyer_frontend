@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useNavigate } from "react-router";
 import {
   AlertCircle,
   ArrowRight,
@@ -32,6 +33,7 @@ const BUSINESS_TYPES = [
 ];
 
 export function AuthModal() {
+  const navigate = useNavigate();
   const isOpen = useAuthStore((state) => state.isAuthModalOpen);
   const closeModal = useAuthStore((state) => state.closeAuthModal);
   const setSession = useAuthStore((state) => state.setSession);
@@ -636,6 +638,36 @@ export function AuthModal() {
                 </button>
               </form>
             )}
+
+            {/* Footer Navigation */}
+            <div className="mt-5 pt-4 border-t border-gray-100 text-center">
+              {step !== "details" ? (
+                <p className="text-xs text-gray-500">
+                  Don’t have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeModal();
+                      navigate("/register");
+                    }}
+                    className="font-bold text-[#0A4D3C] hover:underline cursor-pointer inline-block"
+                  >
+                    Register Here
+                  </button>
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setStep("phone")}
+                    className="font-bold text-[#0A4D3C] hover:underline cursor-pointer inline-block"
+                  >
+                    Sign In Here
+                  </button>
+                </p>
+              )}
+            </div>
           </motion.div>
         </motion.div>
       ) : null}

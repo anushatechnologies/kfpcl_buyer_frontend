@@ -351,9 +351,9 @@ export default function LoginClient() {
             </form>
             <div className="mt-5 pt-4 border-t border-dark-100 text-center">
               <p className="text-xs text-dark-500 font-medium">
-                Don&#39;t have an account?{' '}
+                Don’t have an account?{' '}
                 <Link href="/register" className="text-[#1B3D2F] font-bold hover:underline inline-flex items-center gap-1 transition-all group">
-                  Register Now
+                  Register Here
                   <svg className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                   </svg>

@@ -395,12 +395,12 @@ export function LoginPage() {
         {/* Footer info */}
         <div className="mt-6 pt-5 border-t border-gray-100 text-center">
           <p className="text-xs text-gray-500">
-            Don't have an account yet?{" "}
+            Don’t have an account?{" "}
             <Link
               to="/register"
               className="font-bold text-[#0A4D3C] hover:underline"
             >
-              Register as Buyer
+              Register Here
             </Link>
           </p>
         </div>

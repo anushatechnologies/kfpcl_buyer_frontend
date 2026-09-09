@@ -17,6 +17,8 @@ export interface Company {
   id: string;
   name: string;
   gstNumber?: string;
+  panNumber?: string;
+  panCardUrl?: string;
   address: Address;
   industry: string;
   employeeCount?: string;
@@ -54,8 +56,14 @@ export interface RegisterPayload {
   password: string;
   role: UserRole;
   companyName?: string;
+  businessName?: string;
   gstNumber?: string;
   gstin?: string;
   industry?: string;
   businessType?: string;
+  state?: string;
+  city?: string;
+  panNumber?: string;
+  panCardUrl?: string;
 }
+

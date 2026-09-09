@@ -12,6 +12,9 @@ export interface AuthUser {
   businessType?: string;
   state?: string;
   city?: string;
+  gstin?: string;
+  panNumber?: string;
+  panCardUrl?: string;
   isVerified?: boolean;
   isActive?: boolean;
   roles?: string | string[];
@@ -51,6 +54,10 @@ export interface SignupPayload {
   businessType: string;
   state: string;
   city: string;
+  gstin?: string;
+  panNumber?: string;
+  panCardUrl?: string;
+  role?: string;
   fcmToken?: string;
 }
 
@@ -326,8 +333,9 @@ export const authApi = {
       if (isMissingEndpointError(err)) {
         const accessToken = `buyer_token_${cleanPhone}_${Date.now()}`;
         const refreshToken = `buyer_refresh_${cleanPhone}_${Date.now()}`;
+        const userRole = payload.role || 'buyer';
         const newUser: AuthUser = {
-          id: `buyer_${cleanPhone}`,
+          id: `${userRole}_${cleanPhone}`,
           phoneNumber: cleanPhone,
           phone: cleanPhone,
           fullName: payload.fullName,
@@ -337,9 +345,12 @@ export const authApi = {
           businessType: payload.businessType,
           state: payload.state,
           city: payload.city,
+          gstin: payload.gstin,
+          panNumber: payload.panNumber,
+          panCardUrl: payload.panCardUrl,
           isVerified: true,
           isActive: true,
-          roles: 'buyer',
+          roles: userRole,
         };
         saveRegisteredUser(newUser);
         return {
@@ -358,14 +369,18 @@ export const authApi = {
    */
   register: async (payload: any): Promise<AuthResponse> => {
     return authApi.signup({
-      phoneNumber: payload.phone || payload.phoneNumber || '',
+      phoneNumber: payload.phone || payload.phoneNumber || payload.mobile || '',
       verificationToken: payload.verificationToken || 'direct',
       fullName: payload.name || payload.fullName || '',
       email: payload.email || '',
-      companyName: payload.companyName || '',
-      businessType: payload.businessType || payload.industry || 'Wholesaler',
+      companyName: payload.companyName || payload.businessName || '',
+      businessType: payload.businessType || payload.industry || 'Wholesaler / Trader',
       state: payload.state || 'Telangana',
       city: payload.city || 'Hyderabad',
+      gstin: payload.gstin || payload.gstNumber,
+      panNumber: payload.panNumber || payload.pan,
+      panCardUrl: payload.panCardUrl || payload.panImage,
+      role: payload.role || 'buyer',
     });
   },
 
