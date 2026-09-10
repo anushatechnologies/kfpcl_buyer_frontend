@@ -23,6 +23,8 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+        env:
+          VITE_API_BASE_URL: https://api.kfpclexports.com/api
 
       - name: Deploy to GoDaddy
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
@@ -33,4 +35,4 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./dist/
-          server-dir: ./public_html/
+          server-dir: ./
