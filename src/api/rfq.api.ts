@@ -231,7 +231,7 @@ function mapRFQDto(dto: any): RFQ {
   return {
     id: rfqId,
     rfqCode: rfqObj.rfqCode || rfqObj.code || undefined,
-    title: product.name || rfqObj.title || rfqObj.productName || rfqObj.rfqNumber || 'Quotation Request',
+    title: rfqObj.productName || product.name || rfqObj.title || rfqObj.rfqNumber || 'Quotation Request',
     description: rfqObj.buyerMessage || rfqObj.description || rfqObj.specifications || '',
     targetPrice: rfqObj.targetPrice !== undefined && rfqObj.targetPrice !== null ? Number(rfqObj.targetPrice) : undefined,
     quantity: parsedQuantity.amount,
@@ -248,7 +248,7 @@ function mapRFQDto(dto: any): RFQ {
     buyerId: rfqObj.buyerId ? String(rfqObj.buyerId) : undefined,
     buyerName: rfqObj.buyerName || 'Verified Buyer',
     buyerCompany: rfqObj.buyerCompany || rfqObj.company || 'Global Import Corp',
-    productName: product.name || rfqObj.title || rfqObj.productName || '',
+    productName: rfqObj.productName || product.name || rfqObj.title || '',
     productCategory: rfqObj.categoryId || rfqObj.productCategory || 'General',
     deliveryDate: rfqObj.requiredByDate || rfqObj.deliveryDate || rfqObj.deadline,
     deliveryLocation: rfqObj.deliveryLocation || 'India',
@@ -325,10 +325,13 @@ export const rfqApi = {
     const buyerName = payload.buyerName || session?.name || '';
     const subject = payload.subject || payload.title || 'Requirement for wholesale quotation';
     const message = payload.buyerMessage || payload.description || payload.specifications || subject;
+    const productName = payload.productName || payload.title || '';
 
     const rfqBody = {
-      // productId is optional — omit when not provided so backend uses title-based lookup
+      // productId is optional if selected from dropdown
       ...(payload.productId ? { productId: Number(payload.productId) } : {}),
+      // Pass productName directly so custom inquiries or commodities display with exact title in Buyer and Admin panels
+      ...(productName ? { productName } : {}),
       quantity: typeof payload.quantity === 'number'
         ? `${payload.quantity} ${payload.unit || 'KG'}`
         : payload.quantity || '100 KG',

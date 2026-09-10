@@ -371,13 +371,13 @@ export function Product() {
       return;
     }
 
-    const quantityMatch = rfqQuantity.trim().match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
-    const requestedQuantity = Number(quantityMatch?.[1]);
-    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
-      toast.error("Enter a valid quantity, for example 500 kg or 5 MT.");
+    const rawQuantity = rfqQuantity.trim();
+    if (!rawQuantity) {
+      toast.error("Enter a valid quantity, for example 500 kg or 30 Standard Packs.");
       return;
     }
 
+    const quantityMatch = rawQuantity.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
     const unit = quantityMatch?.[2]?.trim() || selectedVariant?.name || "KG";
     const message = [
       `Buyer Name: ${rfqBuyerName.trim()}`,
@@ -393,15 +393,16 @@ export function Product() {
     try {
       await rfqApi.createRFQ({
         productId: Number(product.id),
+        productName: product.name,
         title: product.name,
-        subject: rfqSubject.trim() || `Requirement for ${product.name}`,
+        subject: rfqSubject.trim() || `Price Enquiry for ${product.name}`,
         description: message,
         buyerMessage: message,
-        quantity: requestedQuantity,
+        quantity: rawQuantity,
         unit,
         deliveryLocation: rfqDeliveryLocation.trim(),
         buyerName: rfqBuyerName.trim(),
-        buyerPhone: cleanPhone,
+        buyerPhone: `+91 ${cleanPhone}`,
         email: session?.email || undefined,
       });
 
