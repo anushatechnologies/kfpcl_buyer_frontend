@@ -40,6 +40,7 @@ import { getActiveFreeItemOffers, getProductById, getProductRatings, getProducts
 import { rfqApi } from "../../api/rfq.api";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
+import { readStoredSession } from "../lib/session";
 import type { FreeItemOffer, Product as ProductType, Variant } from "../types/storefront";
 
 export function Product() {
@@ -59,6 +60,7 @@ export function Product() {
   const [error, setError] = useState("");
   const session = useAuthStore((state) => state.session);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
+  const hydrateFromStorage = useAuthStore((state) => state.hydrateFromStorage);
 
   // Enquiry / RFQ Submission state
   const [isRfqModalOpen, setIsRfqModalOpen] = useState(false);
@@ -74,7 +76,11 @@ export function Product() {
   const [enquiryId] = useState(() => `ENQ-${Date.now().toString(36).toUpperCase()}`);
   const enquiryDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-  // Sync session name/phone when session changes or loads
+  useEffect(() => {
+    hydrateFromStorage();
+  }, [hydrateFromStorage]);
+
+  // Sync session name/phone when session changes or loads or RFQ modal opens
   useEffect(() => {
     if (session?.name && !rfqBuyerName) {
       setRfqBuyerName(session.name);
@@ -83,6 +89,19 @@ export function Product() {
       setRfqBuyerPhone(session.phoneNumber);
     }
   }, [session]);
+
+  useEffect(() => {
+    if (isRfqModalOpen) {
+      hydrateFromStorage();
+      const current = readStoredSession();
+      if (current?.name && !rfqBuyerName) {
+        setRfqBuyerName(current.name);
+      }
+      if (current?.phoneNumber && !rfqBuyerPhone) {
+        setRfqBuyerPhone(current.phoneNumber);
+      }
+    }
+  }, [isRfqModalOpen, hydrateFromStorage]);
 
   // Prevent background scrolling when RFQ modal is active
   useEffect(() => {
@@ -373,14 +392,17 @@ export function Product() {
     setIsRfqSubmitting(true);
     try {
       await rfqApi.createRFQ({
-        productId: String(product.id),
+        productId: Number(product.id),
         title: product.name,
+        subject: rfqSubject.trim() || `Requirement for ${product.name}`,
         description: message,
+        buyerMessage: message,
         quantity: requestedQuantity,
         unit,
         deliveryLocation: rfqDeliveryLocation.trim(),
         buyerName: rfqBuyerName.trim(),
         buyerPhone: cleanPhone,
+        email: session?.email || undefined,
       });
 
       setIsRfqModalOpen(false);

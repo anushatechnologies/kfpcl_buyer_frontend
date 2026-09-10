@@ -82,7 +82,9 @@ export interface CreateRFQPayload {
   quantity: number | string;
   unit: string;
   requiredByDate?: string;
-  // Aliases for compatibility
+  // Aliases and backend fields
+  subject?: string;
+  buyerMessage?: string;
   productName?: string;
   productCategory?: string;
   productId?: string | number;

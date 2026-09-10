@@ -202,7 +202,11 @@ export default function RFQClient() {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!isAuthenticated) {
+    const activeToken =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token')
+        : null;
+    if (!isAuthenticated && (!activeToken || activeToken === 'undefined' || activeToken === 'null')) {
       setSubmitError('Please log in to submit a Request for Quotation.');
       return;
     }

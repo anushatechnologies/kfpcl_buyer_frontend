@@ -166,7 +166,10 @@ export async function verifyOtpAndLogin(sixDigitOtp: string): Promise<any> {
   });
 
   const data = response.data?.data || response.data || {};
-  const { accessToken, refreshToken, user } = data;
+  const accessToken = data.accessToken || data.token;
+  const refreshToken = data.refreshToken;
+  const user = data.user;
+  const cleanPhone = user?.phoneNumber || user?.phone || userCredential.user?.phoneNumber || "";
 
   if (accessToken && typeof window !== "undefined") {
     // Persist via writeStoredSession so SESSION_UPDATED_EVENT is fired
@@ -174,8 +177,8 @@ export async function verifyOtpAndLogin(sixDigitOtp: string): Promise<any> {
     const sessionData: CustomerSession = {
       accessToken,
       refreshToken: refreshToken || "",
-      customerId: Number(user?.id) || 1,
-      phoneNumber: user?.phoneNumber || user?.phone || "",
+      customerId: Number(user?.buyerId || user?.id) || 1,
+      phoneNumber: cleanPhone,
       name: user?.fullName || user?.name || "Buyer",
       email: user?.email || "",
       roles: user?.role || user?.roles || "buyer",
@@ -189,10 +192,16 @@ export async function verifyOtpAndLogin(sixDigitOtp: string): Promise<any> {
       localStorage.setItem("refreshToken", refreshToken);
       localStorage.setItem("kfpcl_refresh_token", refreshToken);
     }
-    if (user) {
-      localStorage.setItem("buyer", JSON.stringify(user));
-      localStorage.setItem("user", JSON.stringify(user));
-    }
+    const userToStore = user || {
+      buyerId: String(sessionData.customerId),
+      id: String(sessionData.customerId),
+      fullName: sessionData.name,
+      phoneNumber: cleanPhone,
+      email: sessionData.email,
+      role: "buyer",
+    };
+    localStorage.setItem("buyer", JSON.stringify(userToStore));
+    localStorage.setItem("user", JSON.stringify(userToStore));
     if (sessionData.phoneNumber) {
       localStorage.setItem("kfpcl_user_phone", sessionData.phoneNumber);
     }

@@ -1,5 +1,6 @@
 import apiClient from './client';
 import { RFQ, CreateRFQPayload, Quote, PaginatedRFQs } from '@/types/rfq';
+import { readStoredSession } from '@/app/lib/session';
 
 function parseQuantity(value: unknown): { amount: number; unit: string } {
   if (typeof value === 'number') return { amount: value, unit: '' };
@@ -315,10 +316,16 @@ export const rfqApi = {
   /**
    * 1️⃣ Create a Request for Quotation (RFQ)
    * POST /api/buyer/rfqs
-   * Auth resolved via X-User-Email header (set by apiClient interceptor)
+   * Auth resolved via Bearer token Authorization header
    */
   createRFQ: async (payload: CreateRFQPayload): Promise<RFQ> => {
-    const buyerEmail = payload.email || '';
+    const session = readStoredSession();
+    const buyerEmail = payload.email || session?.email || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_user_email') : '') || '';
+    const buyerPhone = payload.buyerPhone || session?.phoneNumber || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_user_phone') : '') || '';
+    const buyerName = payload.buyerName || session?.name || '';
+    const subject = payload.subject || payload.title || 'Requirement for wholesale quotation';
+    const message = payload.buyerMessage || payload.description || payload.specifications || subject;
+
     const rfqBody = {
       // productId is optional — omit when not provided so backend uses title-based lookup
       ...(payload.productId ? { productId: Number(payload.productId) } : {}),
@@ -326,21 +333,44 @@ export const rfqApi = {
         ? `${payload.quantity} ${payload.unit || 'KG'}`
         : payload.quantity || '100 KG',
       deliveryLocation: payload.deliveryLocation || 'India',
-      buyerMessage: payload.description || payload.specifications || payload.title || 'Inquiry for wholesale quotation',
+      subject,
+      buyerMessage: message,
+      buyerName: buyerName || 'Buyer',
+      buyerPhone: buyerPhone || '',
       email: buyerEmail,
-      ...(payload.buyerName ? { buyerName: payload.buyerName } : {}),
-      ...(payload.buyerPhone ? { buyerPhone: payload.buyerPhone } : {}),
     };
 
+    // Ensure buyer authentication token is sent in the Authorization header for POST /api/buyer/rfqs
+    let token: string | undefined = session?.accessToken;
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token') || undefined;
+    }
+    if (token === 'undefined' || token === 'null' || !token?.trim()) {
+      token = undefined;
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token.trim()}`;
+    }
+    if (buyerEmail) {
+      headers['X-User-Email'] = buyerEmail;
+    }
+    if (buyerPhone) {
+      headers['X-Phone-Number'] = buyerPhone;
+    }
+
     try {
-      const response = await apiClient.post<any>('/api/buyer/rfqs', rfqBody);
+      const response = await apiClient.post<any>('/api/buyer/rfqs', rfqBody, { headers });
       return mapRFQDto(response.data?.data || response.data);
     } catch (err: any) {
       const msg = String(err?.response?.data?.message || err?.response?.data?.error || err?.message || '');
       // If productId triggered an FK constraint failure (e.g. ID not found in RDS products table), retry safely without productId
       if ('productId' in rfqBody && (msg.includes('foreign key constraint fails') || msg.includes('FOREIGN KEY') || msg.includes('child row'))) {
         const { productId: _unused, ...safeBody } = rfqBody as any;
-        const fallbackResponse = await apiClient.post<any>('/api/buyer/rfqs', safeBody);
+        const fallbackResponse = await apiClient.post<any>('/api/buyer/rfqs', safeBody, { headers });
         return mapRFQDto(fallbackResponse.data?.data || fallbackResponse.data);
       }
       throw err;
@@ -353,10 +383,44 @@ export const rfqApi = {
    */
   getRFQsPaginated: async (page: number = 0, size: number = 10, status?: string): Promise<PaginatedRFQs> => {
     const params: Record<string, any> = { page, size };
-    if (status) params.status = status;
+    if (status && status !== 'all') {
+      const normalized = status.toLowerCase();
+      if (normalized === 'open' || normalized === 'submitted') {
+        params.status = 'PENDING';
+      } else if (normalized === 'responded' || normalized === 'with_quotes') {
+        params.status = 'RESPONDED';
+      } else {
+        params.status = status.toUpperCase();
+      }
+    }
+
+    const session = readStoredSession();
+    let token: string | undefined = session?.accessToken;
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token') || undefined;
+    }
+    if (token === 'undefined' || token === 'null' || !token?.trim()) {
+      token = undefined;
+    }
+
+    const buyerEmail = session?.email || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_user_email') : '') || '';
+    const buyerPhone = session?.phoneNumber || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_user_phone') : '') || '';
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token.trim()}`;
+    }
+    if (buyerEmail) {
+      headers['X-User-Email'] = buyerEmail;
+    }
+    if (buyerPhone) {
+      headers['X-Phone-Number'] = buyerPhone;
+    }
 
     try {
-      const response = await apiClient.get<any>('/api/buyer/rfqs', { params });
+      const response = await apiClient.get<any>('/api/buyer/rfqs', { params, headers });
       return extractPaginatedData(response.data?.data || response.data, page, size);
     } catch (err: any) {
       // Handle 500 collation mismatch (utf8mb4_unicode_ci vs utf8mb4_0900_ai_ci) and other

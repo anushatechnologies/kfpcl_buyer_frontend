@@ -21,6 +21,7 @@ import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "../store/authStore";
 import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
 import { HAS_FIREBASE_CONFIG } from "@/app/lib/config";
+import { writeStoredSession } from "@/app/lib/session";
 
 const BUSINESS_TYPES = [
   "Wholesaler",
@@ -176,33 +177,50 @@ export function AuthModal() {
     res: { accessToken: string; refreshToken?: string; user?: any },
     cleanPhone: string
   ) => {
-    setSession({
-      accessToken: res.accessToken,
+    const token = res.accessToken || (res as any).token;
+    const phone = res.user?.phoneNumber || res.user?.phone || cleanPhone;
+    const sessionData = {
+      accessToken: token,
       refreshToken: res.refreshToken || "",
       customerId: Number(res.user?.id) || 1,
-      phoneNumber: res.user?.phoneNumber || cleanPhone,
-      name: res.user?.fullName || "Buyer",
+      phoneNumber: phone,
+      name: res.user?.fullName || res.user?.name || "Buyer",
       email: res.user?.email || "",
-      roles: "buyer",
+      roles: res.user?.role || res.user?.roles || "buyer",
       expiresAt: Date.now() + 60 * 60 * 1000,
-    });
-    if (res.user) {
-      setAuthFromBackend(res.user, res.accessToken, res.refreshToken || "");
-    }
+    };
+
+    setSession(sessionData);
+
+    const userObj = res.user || {
+      id: String(sessionData.customerId),
+      fullName: sessionData.name,
+      phoneNumber: phone,
+      email: sessionData.email,
+      role: "buyer",
+    };
+    setAuthFromBackend(userObj, token, res.refreshToken || "");
+
     if (typeof window !== "undefined") {
-      if (res.accessToken) {
-        localStorage.setItem("accessToken", res.accessToken);
-        localStorage.setItem("kfpcl_token", res.accessToken);
+      writeStoredSession(sessionData);
+      if (token) {
+        localStorage.setItem("accessToken", token);
+        localStorage.setItem("kfpcl_token", token);
       }
       if (res.refreshToken) {
         localStorage.setItem("refreshToken", res.refreshToken);
         localStorage.setItem("kfpcl_refresh_token", res.refreshToken);
       }
-      if (res.user) {
-        localStorage.setItem("user", JSON.stringify(res.user));
+      localStorage.setItem("user", JSON.stringify(userObj));
+      localStorage.setItem("buyer", JSON.stringify(userObj));
+      if (phone) {
+        localStorage.setItem("kfpcl_user_phone", phone);
+      }
+      if (sessionData.email) {
+        localStorage.setItem("kfpcl_user_email", sessionData.email);
       }
     }
-    toast.success(`Welcome back, ${res.user?.fullName || "Buyer"}!`);
+    toast.success(`Welcome back, ${sessionData.name}!`);
     systemApi.saveFcmToken(`web-${Date.now()}`).catch(() => {});
     closeModal();
   };

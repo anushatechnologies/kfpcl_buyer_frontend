@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { rfqApi } from "@/api/rfq.api";
 import { useAuthStore } from "../store/authStore";
+import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
 import type { RFQ, Quote } from "@/types/rfq";
 
 const SAMPLE_TEMPLATES = [
@@ -104,7 +105,18 @@ export function RFQPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const session = useAuthStore((state) => state.session);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
-  const isAuthenticated = Boolean(session?.accessToken);
+  const hydrateFromStorage = useAuthStore((state) => state.hydrateFromStorage);
+  const legacyIsAuthenticated = useLegacyAuthStore((state) => state.isAuthenticated);
+
+  useEffect(() => {
+    hydrateFromStorage();
+  }, [hydrateFromStorage]);
+
+  const isAuthenticated = Boolean(
+    session?.accessToken ||
+    legacyIsAuthenticated ||
+    (typeof window !== "undefined" && (localStorage.getItem("accessToken") || localStorage.getItem("kfpcl_token")))
+  );
 
   const initialTab = searchParams.get("tab") === "list" ? "list" : "create";
   const [activeTab, setActiveTab] = useState<"create" | "list">(initialTab);
@@ -155,7 +167,12 @@ export function RFQPage() {
   // Load RFQs when authenticated
   const loadRFQs = useCallback(
     async (targetPage = 0, silent = false) => {
-      if (!session?.accessToken) {
+      const activeToken =
+        session?.accessToken ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("accessToken") || localStorage.getItem("kfpcl_token")
+          : null);
+      if (!activeToken || activeToken === "undefined" || activeToken === "null") {
         setRfqs([]);
         setIsListLoading(false);
         return;
@@ -254,12 +271,17 @@ export function RFQPage() {
     try {
       const created = await rfqApi.createRFQ({
         title: title.trim(),
+        subject: title.trim(),
         description: description.trim(),
+        buyerMessage: description.trim(),
         quantity: Number(quantity),
         unit,
         targetPrice: targetPrice ? Number(targetPrice) : undefined,
         requiredByDate,
         deliveryLocation: deliveryLocation.trim(),
+        buyerName: session?.name || undefined,
+        buyerPhone: session?.phoneNumber || undefined,
+        email: session?.email || undefined,
       });
 
       setSubmitSuccess(created);

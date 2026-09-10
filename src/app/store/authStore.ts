@@ -206,6 +206,9 @@ if (typeof window !== "undefined") {
 
   window.addEventListener(SESSION_UPDATED_EVENT, () => {
     const session = readStoredSession() || getInitialSession();
+    if (session) {
+      syncToLegacyStore(session);
+    }
     useAuthStore.setState({ session });
   });
 }

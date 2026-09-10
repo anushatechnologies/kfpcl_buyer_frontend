@@ -91,6 +91,33 @@ export const readStoredSession = (): CustomerSession | null => {
 
       return recoveredSession;
     }
+
+    // Additional Fallback: Recover from kfpcl-auth (Zustand persist key)
+    const kfpclAuthRaw = window.localStorage.getItem("kfpcl-auth");
+    if (kfpclAuthRaw) {
+      try {
+        const parsed = JSON.parse(kfpclAuthRaw);
+        const stateToken = parsed?.state?.token;
+        const stateUser = parsed?.state?.user;
+        if (stateToken && stateToken !== "undefined" && stateToken !== "null" && stateToken.trim()) {
+          const recoveredSession: CustomerSession = {
+            accessToken: stateToken.trim(),
+            refreshToken: parsed?.state?.refreshToken || "",
+            customerId: Number(stateUser?.id) || 1,
+            phoneNumber: stateUser?.phone || window.localStorage.getItem("kfpcl_user_phone") || "",
+            name: stateUser?.name || "Buyer",
+            email: stateUser?.email || window.localStorage.getItem("kfpcl_user_email") || "",
+            roles: stateUser?.role || "buyer",
+            expiresAt: Date.now() + 60 * 60 * 1000,
+          };
+          const serialized = JSON.stringify(recoveredSession);
+          const secure = window.location.protocol === "https:" ? "; Secure" : "";
+          document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(serialized)}; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+          window.localStorage.setItem(SESSION_KEY, serialized);
+          return recoveredSession;
+        }
+      } catch {}
+    }
   } catch (e) {
     console.error("Error reading stored session:", e);
   }

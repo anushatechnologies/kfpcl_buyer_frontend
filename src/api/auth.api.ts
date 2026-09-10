@@ -444,11 +444,38 @@ export const authApi = {
         ...(payload.fcmToken ? { fcmToken: payload.fcmToken } : {}),
       });
       const data = response.data?.data || response.data;
-      const accessToken = data?.accessToken || '';
+      const accessToken = data?.accessToken || data?.token || '';
+      const refreshToken = data?.refreshToken || '';
+      const user = data?.user;
+
+      if (accessToken && typeof window !== 'undefined') {
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('kfpcl_token', accessToken);
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+          localStorage.setItem('kfpcl_refresh_token', refreshToken);
+        }
+        if (user) {
+          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('buyer', JSON.stringify(user));
+        }
+        const sessionData = {
+          accessToken,
+          refreshToken,
+          customerId: Number(user?.buyerId || user?.id) || 1,
+          phoneNumber: user?.phoneNumber || user?.phone || cleanPhone,
+          name: user?.fullName || user?.name || 'Buyer',
+          email: user?.email || payload.email || '',
+          roles: user?.role || user?.roles || 'buyer',
+          expiresAt: Date.now() + 60 * 60 * 1000,
+        };
+        writeStoredSession(sessionData);
+      }
+
       return {
         accessToken,
         token: accessToken,
-        refreshToken: data?.refreshToken || '',
+        refreshToken,
         user: data?.user,
       };
     } catch (err: any) {
@@ -506,7 +533,7 @@ export const authApi = {
       city: payload.city || "",
     });
     const data = response.data?.data || response.data;
-    const accessToken = data?.accessToken || "";
+    const accessToken = data?.accessToken || data?.token || "";
     const refreshToken = data?.refreshToken || "";
 
     if (!accessToken) {
@@ -518,7 +545,7 @@ export const authApi = {
       const sessionData = {
         accessToken,
         refreshToken: refreshToken || "",
-        customerId: Number(userObj?.id) || 1,
+        customerId: Number(userObj?.buyerId || userObj?.id) || 1,
         phoneNumber: userObj?.phoneNumber || userObj?.phone || "",
         name: userObj?.fullName || userObj?.name || payload.fullName || "Buyer",
         email: userObj?.email || payload.email || "",

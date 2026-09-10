@@ -44,19 +44,32 @@ apiClient.interceptors.request.use(
       token = undefined;
     }
 
-    if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token.trim()}`;
+    if (token) {
+      const authHeader = `Bearer ${token.trim()}`;
+      if (typeof config.headers?.set === 'function') {
+        config.headers.set('Authorization', authHeader);
+      } else {
+        config.headers.Authorization = authHeader;
+      }
     }
 
-    // Retain X-User-Email and X-Phone-Number for buyer endpoints compatibility
+    // Retain X-User-Email and X-Phone-Number for buyer endpoints compatibility as fallback
     const email = session?.email || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_user_email') : null);
     const phone = session?.phoneNumber || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_user_phone') : null);
 
-    if (email && !config.headers['X-User-Email']) {
-      config.headers['X-User-Email'] = email;
+    if (email) {
+      if (typeof config.headers?.set === 'function') {
+        config.headers.set('X-User-Email', email);
+      } else {
+        config.headers['X-User-Email'] = email;
+      }
     }
-    if (phone && !config.headers['X-Phone-Number']) {
-      config.headers['X-Phone-Number'] = phone;
+    if (phone) {
+      if (typeof config.headers?.set === 'function') {
+        config.headers.set('X-Phone-Number', phone);
+      } else {
+        config.headers['X-Phone-Number'] = phone;
+      }
     }
 
     return config;
