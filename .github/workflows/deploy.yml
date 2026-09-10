@@ -1,4 +1,4 @@
- name: Deploy KFPCL Buyer Frontend to GoDaddy cPanel
+name: Deploy KFPCL Buyer Frontend to GoDaddy cPanel
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build React App and Deploy to cPanel via FTPS
+    name: Build React App and Deploy to cPanel
     runs-on: ubuntu-latest
 
     steps:
@@ -37,17 +37,16 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'anushabazaar-2288e.firebasestorage.app' }}
           VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL || 'https://anushabazaar-2288e-default-rtdb.firebaseio.com' }}
 
-      - name: 🚀 Deploy to GoDaddy cPanel via FTPS
+      - name: 🚀 Deploy to GoDaddy cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          port: 21
-          protocol: ftps
+          port: ${{ secrets.FTP_PORT || 21 }}
+          protocol: ftp
           security: loose
           local-dir: ./dist/
-          server-dir: ${{ secrets.FTP_TARGET_DIR || '/public_html/' }}
+          server-dir: ${{ secrets.FTP_TARGET_DIR || './' }}
           dangerous-clean-slate: false
           timeout: 60000
-  
