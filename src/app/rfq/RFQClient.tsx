@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -26,7 +26,7 @@ import {
   Building,
   Tag,
   DollarSign,
-  Info,
+  LogIn,
   RefreshCw,
   Search,
   MapPin,
@@ -35,6 +35,8 @@ import { rfqApi } from '@/api/rfq.api';
 import { RFQ, Quote } from '@/types/rfq';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+// App-level auth store — owns the Sign In modal
+import { useAuthStore as useAppAuthStore } from '@/app/store/authStore';
 
 const STATUS_BADGES: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'badge-gray' },
@@ -101,9 +103,15 @@ const SAMPLE_TEMPLATES = [
 
 export default function RFQClient() {
   const { isAuthenticated } = useAuthStore();
+  const openAuthModal = useAppAuthStore((s) => s.openAuthModal);
   const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
+  // Default to My RFQs list when authenticated; create tab when not
+  const [activeTab, setActiveTab] = useState<'create' | 'list'>(
+    isAuthenticated ? 'list' : 'create'
+  );
+  // Track whether we already opened the modal on mount
+  const didOpenModal = useRef(false);
   const [rfqs, setRfqs] = useState<RFQ[]>([]);
   const [isListLoading, setIsListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -182,9 +190,21 @@ export default function RFQClient() {
     }
   }, [pageSize]);
 
+  // On mount: if not signed in, open the Sign In popup immediately
   useEffect(() => {
-    fetchRFQs(0);
-  }, [fetchRFQs]);
+    if (!isAuthenticated && !didOpenModal.current) {
+      didOpenModal.current = true;
+      openAuthModal();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When auth state changes to authenticated: switch to list tab and load RFQs
+  useEffect(() => {
+    if (isAuthenticated) {
+      setActiveTab('list');
+      fetchRFQs(0);
+    }
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleExpandRfq = (rfqId: string) => {
     setExpandedRfqIds((prev) => ({
@@ -202,12 +222,8 @@ export default function RFQClient() {
   };
 
   const onSubmit = async (data: FormData) => {
-    const activeToken =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token')
-        : null;
-    if (!isAuthenticated && (!activeToken || activeToken === 'undefined' || activeToken === 'null')) {
-      setSubmitError('Please log in to submit a Request for Quotation.');
+    if (!isAuthenticated) {
+      openAuthModal();
       return;
     }
 
@@ -313,6 +329,41 @@ export default function RFQClient() {
     errors[name]
       ? 'w-full rounded-xl border border-red-400 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400/30'
       : 'w-full rounded-xl border border-dark-200 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all';
+
+  // ── Auth gate: not signed in ────────────────────────────────────────────────
+  if (!isAuthenticated) {
+    return (
+      <div className="section animate-fade-in py-16 flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="card max-w-md w-full p-10 text-center space-y-5 shadow-xl">
+          <div className="h-16 w-16 rounded-2xl bg-brand-50 border border-brand-100 flex items-center justify-center mx-auto">
+            <FileText className="h-8 w-8 text-brand-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold font-display text-dark-900 mb-1">
+              Sign In to Access RFQs
+            </h1>
+            <p className="text-sm text-dark-500 leading-relaxed">
+              Create and manage your Request for Quotation in one place. Sign in with your buyer account to get started.
+            </p>
+          </div>
+          <button
+            onClick={() => openAuthModal()}
+            className="btn-primary w-full py-3 text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-brand-500/20"
+          >
+            <LogIn className="h-4 w-4" />
+            Sign In to Continue
+          </button>
+          <p className="text-xs text-dark-400">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="text-brand-600 font-semibold hover:underline">
+              Register here
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="section animate-fade-in py-6 sm:py-10">
@@ -477,17 +528,7 @@ export default function RFQClient() {
                       <span className="badge-orange text-xs">Direct to Suppliers</span>
                     </div>
 
-                    {!isAuthenticated && (
-                      <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-3">
-                        <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold">Authentication Required</p>
-                          <p className="mt-0.5">
-                            Please <Link href="/login" className="underline font-bold text-amber-950">sign in</Link> to your buyer account to submit RFQs and receive quotations.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    {/* Auth warning banner is no longer needed — unauthenticated users see the gate screen */}
 
                     {/* Quick Templates */}
                     <div className="mb-6">
