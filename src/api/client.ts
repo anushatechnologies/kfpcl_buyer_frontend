@@ -98,16 +98,41 @@ apiClient.interceptors.response.use(
       requestUrl.includes('/api/auth/firebase-login');
 
     if (error.response.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
-      const session = readStoredSession();
-      const refreshToken =
-        session?.refreshToken ||
-        (typeof window !== 'undefined'
+      // 1. Check localStorage first before attempting /api/auth/refresh
+      const localAccessToken =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('accessToken') || localStorage.getItem('kfpcl_token')
+          : null;
+      const localRefreshToken =
+        typeof window !== 'undefined'
           ? localStorage.getItem('refreshToken') || localStorage.getItem('kfpcl_refresh_token')
-          : null);
+          : null;
 
-      if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') {
+      const isValidToken = (t: string | null | undefined): boolean =>
+        Boolean(t && t !== 'undefined' && t !== 'null' && t.trim().length > 0);
+
+      const hasAccessToken = isValidToken(localAccessToken);
+      const hasRefreshToken = isValidToken(localRefreshToken);
+
+      // If no token exists in localStorage, do not call /api/auth/refresh on page load — simply open the login modal cleanly without showing "Session Expired"
+      if (!hasAccessToken && !hasRefreshToken) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('kfpcl:open-auth-modal-clean'));
+        }
         return Promise.reject(error);
       }
+
+      // If no valid refresh token exists in localStorage, do not call /api/auth/refresh
+      if (!hasRefreshToken) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('kfpcl_token');
+          window.dispatchEvent(new CustomEvent('kfpcl:open-auth-modal-clean'));
+        }
+        return Promise.reject(error);
+      }
+
+      const refreshToken = localRefreshToken!.trim();
 
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -128,6 +153,7 @@ apiClient.interceptors.response.use(
         const newRefreshToken = data?.refreshToken || refreshToken;
 
         if (newAccessToken) {
+          const session = readStoredSession();
           if (session) {
             writeStoredSession({
               ...session,
@@ -148,10 +174,26 @@ apiClient.interceptors.response.use(
         } else {
           throw new Error('Refresh response missing access token');
         }
-      } catch (refreshErr) {
+      } catch (refreshErr: any) {
         processQueue(refreshErr, null);
-        // Do not wipe the user's stored session on background refresh failure;
-        // let the UI prompt re-authentication via modal when user performs an action
+        
+        // Clear dead/invalid tokens from localStorage to eliminate constant 400 logs
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('kfpcl_refresh_token');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('kfpcl_token');
+          // Open the login modal cleanly without showing "Session Expired"
+          window.dispatchEvent(new CustomEvent('kfpcl:open-auth-modal-clean'));
+        }
+        const session = readStoredSession();
+        if (session) {
+          writeStoredSession({
+            ...session,
+            accessToken: '',
+            refreshToken: '',
+          });
+        }
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;

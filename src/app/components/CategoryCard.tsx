@@ -40,7 +40,7 @@ export function CategoryCard({ category, compact = false }: CategoryCardProps) {
         </motion.div>
 
         {/* Category Title */}
-        <h3 className="mt-3 font-sans text-xs sm:text-sm font-bold tracking-tight text-[#0A1628]/85 transition-colors duration-300 group-hover:text-[#1E5AFA] line-clamp-2 max-w-[80px] sm:max-w-[110px] leading-tight">
+        <h3 className="mt-2.5 sm:mt-3 font-sans text-xs sm:text-sm font-bold tracking-tight text-[#0A1628]/85 transition-colors duration-300 group-hover:text-[#0A4D3C] line-clamp-2 w-full max-w-[92px] sm:max-w-[110px] leading-tight break-words text-center">
           {category.name}
         </h3>
       </div>

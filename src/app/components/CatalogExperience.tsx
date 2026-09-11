@@ -1,11 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, ChevronRight, Grid3X3, LoaderCircle, Search, SlidersHorizontal, Sparkles, TrendingUp } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronRight,
+  Grid3X3,
+  Layers,
+  LayoutGrid,
+  LoaderCircle,
+  Package,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  TrendingUp,
+  X,
+} from "lucide-react";
 import { CategoryCard } from "./CategoryCard";
 import { ProductCard } from "./ProductCard";
 import { getCategoryHref, sortProducts } from "../lib/storefrontUtils";
-import { getBestSellerProducts, getCategories, getCategoryById, getProducts, getSubcategories, getTrendingProducts } from "../data/storefrontData";
+import {
+  getBestSellerProducts,
+  getCategories,
+  getCategoryById,
+  getProducts,
+  getSubcategories,
+  getTrendingProducts,
+} from "../data/storefrontData";
 import type { Category, Product, ProductSort, SubCategory } from "../types/storefront";
 
 /* Soft pastel accent colours for category cards */
@@ -23,7 +43,6 @@ interface CatalogExperienceProps {
 }
 
 const SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
-  { value: "relevance", label: "Best match" },
   { value: "featured", label: "Featured first" },
   { value: "price-asc", label: "Price: low → high" },
   { value: "price-desc", label: "Price: high → low" },
@@ -46,6 +65,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
   const [searchParams, setSearchParams] = useSearchParams();
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
+  const [subcategoriesLoading, setSubcategoriesLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +73,8 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
   const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
   const [allShopProducts, setAllShopProducts] = useState<Product[]>([]);
   const [shopProductsLoading, setShopProductsLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [subSearch, setSubSearch] = useState("");
 
   const activeCategoryId =
     fixedCategoryId ??
@@ -64,9 +86,16 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
       .toLowerCase()
       .trim();
     if (!target) return undefined;
+    const cleanTarget = target.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const found = categories.find((c) => {
       const slugified = c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      return String(c.id) === target || slugified === target || c.name.toLowerCase() === target;
+      return (
+        String(c.id) === target ||
+        slugified === target ||
+        slugified === cleanTarget ||
+        c.name.toLowerCase() === target ||
+        (cleanTarget.includes("agri") && slugified.includes("agri"))
+      );
     });
     return found?.id;
   }, [activeCategoryId, categorySlug, searchParams, categories]);
@@ -77,22 +106,12 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
   const trending = searchParams.get("trending") === "1";
   const requestedSort = searchParams.get("sort") as ProductSort | null;
   const sortBy =
-    requestedSort && (requestedSort !== "relevance" || Boolean(keyword))
+    requestedSort && requestedSort !== "relevance"
       ? requestedSort
-      : keyword
-        ? "relevance"
-        : "featured";
-  const sortOptions = keyword ? SORT_OPTIONS : SORT_OPTIONS.filter((option) => option.value !== "relevance");
-
-  const [draftQuery, setDraftQuery] = useState(keyword);
-
-  useEffect(() => {
-    setDraftQuery(keyword);
-  }, [keyword]);
+      : "featured";
 
   useEffect(() => {
     if (!searchParams.has("min") && !searchParams.has("max")) return;
-
     const next = new URLSearchParams(searchParams);
     next.delete("min");
     next.delete("max");
@@ -115,7 +134,6 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
 
   useEffect(() => {
     let isMounted = true;
-
     getCategories()
       .then((nextCategories) => {
         if (!isMounted) return;
@@ -125,10 +143,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
         if (!isMounted) return;
         setError(loadError?.message || "Unable to load filters right now.");
       });
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   const shouldShowCategoryGrid = !effectiveCategoryId && !keyword && !activeSubCategoryId && !trending;
@@ -142,7 +157,6 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
     Promise.all([getTrendingProducts(), getBestSellerProducts(), getProducts()])
       .then(([trending, bestSellers, all]) => {
         if (!isMounted) return;
-        /* Merge trending + bestsellers, deduplicate */
         const merged = [...trending, ...bestSellers];
         const seen = new Set<number>();
         const unique = merged.filter((p) => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
@@ -161,10 +175,11 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
     if (!effectiveCategoryId) {
       setSubcategories([]);
       setCurrentCategory(null);
-      return () => {
-        isMounted = false;
-      };
+      setSubcategoriesLoading(false);
+      return () => { isMounted = false; };
     }
+
+    setSubcategoriesLoading(true);
 
     Promise.all([getCategoryById(effectiveCategoryId), getSubcategories(effectiveCategoryId)])
       .then(([category, nextSubcategories]) => {
@@ -180,11 +195,12 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
         } else {
           setError(loadError?.message || "Unable to load category details.");
         }
+      })
+      .finally(() => {
+        if (isMounted) setSubcategoriesLoading(false);
       });
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [effectiveCategoryId, categories]);
 
   useEffect(() => {
@@ -194,9 +210,10 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
 
     getProducts({
       categoryId: effectiveCategoryId,
-      subCategoryId: activeSubCategoryId,
+      subCategoryId: effectiveCategoryId ? undefined : activeSubCategoryId,
       trending: trending || undefined,
       keyword: keyword || undefined,
+      limit: 100,
     })
       .then((nextProducts) => {
         if (!isMounted) return;
@@ -208,50 +225,38 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
         setProducts([]);
       })
       .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       });
 
-    return () => {
-      isMounted = false;
-    };
-  }, [effectiveCategoryId, activeSubCategoryId, keyword, trending]);
+    return () => { isMounted = false; };
+  }, [effectiveCategoryId, keyword, trending]);
 
-  // Strictly filter products related to the selected category (and subcategory)
+  /* Close mobile sidebar when a subcategory is selected */
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [activeSubCategoryId]);
+
+  // Filter products by category
   const relatedProducts = useMemo(() => {
-    if (!effectiveCategoryId) {
-      return products;
-    }
-
+    if (!effectiveCategoryId) return products;
     const currentCatName = currentCategory?.name?.trim().toLowerCase();
-
     return products.filter((product) => {
-      // 1. Direct categoryId match
-      if (product.categoryId != null && Number(product.categoryId) === Number(effectiveCategoryId)) {
-        return true;
-      }
-      // 2. Matching categoryName
+      if (product.categoryId != null && Number(product.categoryId) === Number(effectiveCategoryId)) return true;
       if (currentCatName && product.categoryName) {
-        if (product.categoryName.trim().toLowerCase() === currentCatName) {
-          return true;
-        }
+        if (product.categoryName.trim().toLowerCase() === currentCatName) return true;
       }
       return false;
     });
   }, [products, effectiveCategoryId, currentCategory]);
 
+  // Filter by subcategory
   const subCategoryFilteredProducts = useMemo(() => {
     if (!activeSubCategoryId) return relatedProducts;
     return relatedProducts.filter((product) => {
-      if (product.subCategoryId != null && Number(product.subCategoryId) === Number(activeSubCategoryId)) {
-        return true;
-      }
+      if (product.subCategoryId != null && Number(product.subCategoryId) === Number(activeSubCategoryId)) return true;
       const activeSub = subcategories.find((s) => s.id === activeSubCategoryId);
       if (activeSub?.name && product.subCategoryName) {
-        if (product.subCategoryName.trim().toLowerCase() === activeSub.name.trim().toLowerCase()) {
-          return true;
-        }
+        if (product.subCategoryName.trim().toLowerCase() === activeSub.name.trim().toLowerCase()) return true;
       }
       return false;
     });
@@ -265,12 +270,37 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
     (currentCategory?.description
       ? currentCategory.description
       : keyword
-        ? `Showing smart results for "${keyword}" with typo correction and local grocery keywords.`
+        ? `Showing smart results for "${keyword}".`
         : "Browse categories, refine with subcategories, and compare products on one clean page.");
+
+  const activeSubcategoryName = subcategories.find((s) => s.id === activeSubCategoryId)?.name;
+
+  const filteredSubcategories = useMemo(() => {
+    if (!subSearch.trim()) return subcategories;
+    const q = subSearch.trim().toLowerCase();
+    return subcategories.filter((s) => s.name.toLowerCase().includes(q));
+  }, [subcategories, subSearch]);
+
+  const subcategoryCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const p of relatedProducts) {
+      if (p.subCategoryId != null) {
+        counts[p.subCategoryId] = (counts[p.subCategoryId] || 0) + 1;
+      } else if (p.subCategoryName) {
+        const match = subcategories.find(
+          (s) => s.name.trim().toLowerCase() === p.subCategoryName?.trim().toLowerCase()
+        );
+        if (match) {
+          counts[match.id] = (counts[match.id] || 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }, [relatedProducts, subcategories]);
 
   return (
     <div className="app-shell">
-      {/* ── Breadcrumb + Page Header ── */}
+      {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-2 py-4 text-sm text-[#6B7B94]">
         <Link to="/" className="hover:text-[#0A1628] transition-colors">Home</Link>
         <ChevronRight className="h-3.5 w-3.5" />
@@ -279,6 +309,12 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
             <Link to="/shop" className="hover:text-[#0A1628] transition-colors">Shop</Link>
             <ChevronRight className="h-3.5 w-3.5" />
             <span className="font-semibold text-[#0A1628]">{currentCategory.name}</span>
+            {activeSubcategoryName && (
+              <>
+                <ChevronRight className="h-3.5 w-3.5" />
+                <span className="font-semibold text-[#0A1628]">{activeSubcategoryName}</span>
+              </>
+            )}
           </>
         ) : keyword ? (
           <>
@@ -298,7 +334,6 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          {/* ── Section: Categories ── */}
           <div className="mb-6">
             <h1 className="font-sans text-2xl font-bold text-[#0A1628] sm:text-3xl">
               Shop by Category
@@ -316,20 +351,16 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                 className="group relative flex items-center gap-3 overflow-hidden rounded-xl p-3 transition-all duration-300 hover:shadow-[0_6px_24px_rgba(10,22,40,0.08)] sm:flex-col sm:items-start sm:gap-0 sm:p-0"
                 style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }}
               >
-                {/* Image */}
                 <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg sm:aspect-[4/3] sm:h-auto sm:w-full sm:rounded-b-none sm:rounded-t-xl bg-white/40">
                   {category.imageUrl ? (
                     <img
                       src={category.imageUrl}
                       alt={category.name}
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
                     />
                   ) : null}
                 </div>
-                {/* Name + Arrow */}
                 <div className="flex flex-1 items-center justify-between sm:w-full sm:px-3 sm:py-3">
                   <h3 className="font-sans text-[13px] font-semibold text-[#0A1628] leading-snug line-clamp-2 group-hover:text-[#1E5AFA] transition-colors sm:text-sm">
                     {category.name}
@@ -399,235 +430,416 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
           </div>
         </motion.div>
       ) : (
-        /* ── Category Products Layout ── */
+        /* ── Category Products Layout with Sidebar ── */
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="max-w-7xl mx-auto space-y-6 pb-12"
+          className="pb-16"
         >
-          {/* Category Page Title and Subtitle */}
-          <div className="mb-4">
-            <h1 className="font-sans text-3xl font-black text-[#0A4D3C] tracking-tight">
+          {/* Category Page Header Banner */}
+          <div className="mb-6 rounded-2xl bg-white p-6 sm:p-7 border border-[#E2E8F0] shadow-xs">
+            <div className="flex flex-wrap items-center gap-2 mb-2.5">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+                Direct from Verified Farmers & FPOs
+              </span>
+              {currentCategory && (
+                <span className="text-xs text-[#64748B] font-medium">
+                  • {subcategories.length} subcategories • {relatedProducts.length} product{relatedProducts.length === 1 ? '' : 's'} available
+                </span>
+              )}
+            </div>
+            <h1 className="font-sans text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#0F172A] tracking-tight">
               {currentCategory?.name || visibleTitle}
             </h1>
             {visibleSubtitle && (
-              <p className="mt-2 text-sm text-[#7C9A90] font-semibold max-w-3xl leading-relaxed">
+              <p className="mt-2 text-sm sm:text-[15px] text-[#64748B] max-w-3xl leading-relaxed">
                 {visibleSubtitle}
               </p>
             )}
           </div>
 
-          {/* ── Top Subcategories Navigation (Boutique Organic Circular Menu) ── */}
-          {currentCategory && subcategories.length > 0 && (
-            <div className="sticky top-[70px] z-40 bg-white/95 backdrop-blur-xl border-b border-gray-100 pb-4 pt-4 mb-6 shadow-sm -mx-4 px-4 sm:mx-0 sm:px-2 sm:rounded-b-2xl">
-              <div className="flex gap-6 overflow-x-auto pb-2 scrollbar-hide">
-                {/* "All" Option */}
-                <button
-                  type="button"
-                  onClick={() => updateParams({ sub: null })}
-                  className="group flex flex-col items-center shrink-0 focus:outline-none"
-                >
-                  <div className={`h-16 w-16 rounded-full border-2 bg-white overflow-hidden flex items-center justify-center transition-all duration-300 ${
-                    !activeSubCategoryId
-                      ? "border-[#D4A853] ring-4 ring-[#D4A853]/15 shadow-md scale-105"
-                      : "border-[#E2E8F0] group-hover:border-[#0A4D3C]/30"
-                  }`}>
-                    <Grid3X3 className={`h-6 w-6 transition-colors duration-300 ${!activeSubCategoryId ? "text-[#0A4D3C]" : "text-[#94A3B8] group-hover:text-[#0A4D3C]"}`} />
-                  </div>
-                  <span className={`text-[12px] mt-2 transition-all duration-300 font-bold ${
-                    !activeSubCategoryId ? "text-[#0A4D3C] font-black" : "text-[#6B7B94] group-hover:text-[#0A4D3C]"
-                  }`}>
-                    All {currentCategory.name}
-                  </span>
-                </button>
-
-                {/* Subcategories */}
-                {subcategories.map((sub) => {
-                  const isActive = activeSubCategoryId === sub.id;
-                  return (
+          {/* ── Mobile Subcategory Pills (visible on < lg) ── */}
+          {currentCategory && (subcategoriesLoading || subcategories.length > 0) && (
+            <div className="lg:hidden mb-5">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {subcategoriesLoading ? (
+                  <>
+                    <div className="h-10 w-24 rounded-xl bg-[#F1F5F9] animate-pulse flex-shrink-0" />
+                    <div className="h-10 w-28 rounded-xl bg-[#F1F5F9] animate-pulse flex-shrink-0" />
+                    <div className="h-10 w-32 rounded-xl bg-[#F1F5F9] animate-pulse flex-shrink-0" />
+                  </>
+                ) : (
+                  <>
+                    {/* "All" pill */}
                     <button
-                      key={sub.id}
                       type="button"
-                      onClick={() => updateParams({ sub: String(sub.id) })}
-                      className="group flex flex-col items-center shrink-0 focus:outline-none"
+                      onClick={() => updateParams({ sub: null })}
+                      className={`flex-shrink-0 inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-150 border ${
+                        !activeSubCategoryId
+                          ? "bg-[#065F46] text-white border-[#065F46] shadow-xs"
+                          : "bg-white text-[#475569] border-[#E2E8F0] hover:border-[#86efac] hover:text-[#065F46]"
+                      }`}
                     >
-                      <div className={`h-16 w-16 rounded-full border-2 bg-white overflow-hidden transition-all duration-300 ${
-                        isActive
-                          ? "border-[#D4A853] ring-4 ring-[#D4A853]/15 shadow-md scale-105"
-                          : "border-[#E2E8F0] group-hover:border-[#0A4D3C]/30"
-                      }`}>
-                        {sub.imageUrl ? (
-                          <img
-                            src={sub.imageUrl}
-                            alt={sub.name}
-                            className="h-full w-full object-cover bg-white"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                      <span className={`text-[12px] mt-2 transition-all duration-300 font-bold ${
-                        isActive ? "text-[#0A4D3C] font-black" : "text-[#6B7B94] group-hover:text-[#0A4D3C]"
-                      }`}>
-                        {sub.name}
-                      </span>
+                      <LayoutGrid className={`h-3.5 w-3.5 ${!activeSubCategoryId ? 'text-white' : 'text-[#64748B]'}`} />
+                      All ({relatedProducts.length})
                     </button>
-                  );
-                })}
+
+                    {subcategories.map((sub) => {
+                      const isActive = activeSubCategoryId === sub.id;
+                      const count = subcategoryCounts[sub.id] || 0;
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => updateParams({ sub: String(sub.id) })}
+                          className={`flex-shrink-0 inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-150 border ${
+                            isActive
+                              ? "bg-[#065F46] text-white border-[#065F46] shadow-xs"
+                              : "bg-white text-[#475569] border-[#E2E8F0] hover:border-[#86efac] hover:text-[#065F46]"
+                          }`}
+                        >
+                          {sub.imageUrl ? (
+                            <img
+                              src={sub.imageUrl}
+                              alt=""
+                              className={`h-5 w-5 rounded-md object-cover flex-shrink-0 border ${isActive ? 'border-white/40' : 'border-[#E2E8F0]'}`}
+                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                            />
+                          ) : (
+                            <div className={`h-5 w-5 rounded-md flex items-center justify-center text-[10px] font-bold ${
+                              isActive ? 'bg-white/20 text-white' : 'bg-[#F1F5F9] text-[#065F46]'
+                            }`}>
+                              {sub.name.charAt(0)}
+                            </div>
+                          )}
+                          <span>{sub.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                            isActive ? 'bg-white/20 text-white' : 'bg-[#F1F5F9] text-[#64748B]'
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
               </div>
             </div>
           )}
 
-          {/* Promotional Banners (Dual Premium Editorial Side-by-Side) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Banner 1: Bazaar Selects */}
-            <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A4D3C] via-[#0E5E4A] to-[#D4A853] p-7 text-white min-h-[180px] group shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-500 cursor-pointer">
-              <div className="max-w-[65%] z-10">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D4A853] bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">Bazaar Selects</span>
-                <h3 className="mt-4 font-sans text-lg font-black leading-tight tracking-tight text-white sm:text-xl">
-                  Forgot The Flowers? <span className="text-[#D4A853] font-black">WE DIDN'T!</span>
-                </h3>
-                <p className="mt-1.5 text-[13px] text-white/80 font-medium">Fresh blooms handpicked & delivered in minutes</p>
-              </div>
-              <div className="mt-5 z-10">
-                <button className="rounded-xl bg-[#D4A853] text-[#0A4D3C] px-6 py-2.5 text-[13px] font-black hover:bg-white hover:text-[#0A4D3C] hover:shadow-lg transition-all shadow-sm uppercase tracking-wider">
-                  Explore Selects
-                </button>
-              </div>
-              <div className="absolute -bottom-4 -right-4 h-36 w-36 opacity-90 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-700 z-0">
-                <img src="https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=300&q=80" alt="" className="h-full w-full object-contain mix-blend-screen" />
-              </div>
-            </div>
+          {/* ── Main layout: Vertical Sidebar (lg+) + Products Area ── */}
+          <div className="flex gap-6 items-start">
 
-            {/* Banner 2: Daily Fresh */}
-            <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-[#073B4C] via-[#0A4D3C] to-[#E67E22] p-7 text-white min-h-[180px] group shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-500 cursor-pointer">
-              <div className="max-w-[65%] z-10">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A7F3D0] bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">Daily Fresh</span>
-                <h3 className="mt-4 font-sans text-lg font-black leading-tight tracking-tight text-white sm:text-xl">
-                  Freshly Launched Market Deals
-                </h3>
-                <p className="mt-1.5 text-[13px] font-bold text-[#A7F3D0]">UP TO 30% OFF FRESHNESS</p>
+            {/* ── FULLY VERTICAL SIDEBAR (desktop/tablet ≥ lg) ── */}
+            {currentCategory && (subcategoriesLoading || subcategories.length > 0) && (
+              <aside className="hidden lg:flex flex-col w-72 xl:w-80 flex-shrink-0 sticky top-[80px] self-start">
+                <div className="rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col overflow-hidden">
+                  {/* Sidebar header */}
+                  <div className="p-4 border-b border-[#E2E8F0] bg-[#FAFAFA]">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] flex items-center justify-center text-[#065F46]">
+                          <Layers className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h2 className="text-sm font-bold text-[#0F172A] leading-tight">
+                            Subcategories
+                          </h2>
+                          <p className="text-[11px] text-[#64748B] font-medium">
+                            {subcategories.length} available
+                          </p>
+                        </div>
+                      </div>
+                      {activeSubCategoryId && (
+                        <button
+                          type="button"
+                          onClick={() => updateParams({ sub: null })}
+                          className="text-[11px] font-bold text-[#065F46] hover:text-[#047857] bg-[#ECFDF5] hover:bg-[#D1FAE5] px-2 py-1 rounded-md transition-colors border border-[#A7F3D0]"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Filter input when there are multiple subcategories */}
+                    {subcategories.length > 3 && (
+                      <div className="mt-3 relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#94A3B8] pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Search subcategories..."
+                          value={subSearch}
+                          onChange={(e) => setSubSearch(e.target.value)}
+                          className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[#E2E8F0] bg-white placeholder:text-[#94A3B8] text-[#0F172A] focus:outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] transition-colors"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {subcategoriesLoading ? (
+                    <div className="p-4 space-y-2">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="flex items-center gap-3 py-2.5 px-2">
+                          <div className="h-8 w-8 rounded-lg bg-[#F1F5F9] animate-pulse flex-shrink-0" />
+                          <div className="h-4 flex-1 rounded bg-[#F1F5F9] animate-pulse" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <nav className="p-2 space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto">
+                      {/* "All" option */}
+                      <button
+                        type="button"
+                        onClick={() => updateParams({ sub: null })}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150 ${
+                          !activeSubCategoryId
+                            ? "bg-[#ECFDF5] text-[#065F46] font-bold border-l-4 border-l-[#059669] shadow-xs"
+                            : "text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A] font-medium"
+                        }`}
+                      >
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                          !activeSubCategoryId ? "bg-[#065F46] text-white" : "bg-[#F1F5F9] text-[#64748B]"
+                        }`}>
+                          <LayoutGrid className="h-4 w-4" />
+                        </div>
+                        <span className="text-xs sm:text-[13px] flex-1 truncate">
+                          All {currentCategory.name}
+                        </span>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+                          !activeSubCategoryId ? "bg-[#D1FAE5] text-[#065F46]" : "bg-[#F1F5F9] text-[#64748B]"
+                        }`}>
+                          {relatedProducts.length}
+                        </span>
+                      </button>
+
+                      {/* Subcategory list */}
+                      {filteredSubcategories.length === 0 ? (
+                        <div className="py-6 px-3 text-center text-xs text-[#94A3B8]">
+                          No subcategories match "{subSearch}"
+                        </div>
+                      ) : (
+                        filteredSubcategories.map((sub) => {
+                          const isActive = activeSubCategoryId === sub.id;
+                          const count = subcategoryCounts[sub.id] || 0;
+                          return (
+                            <button
+                              key={sub.id}
+                              type="button"
+                              onClick={() => updateParams({ sub: String(sub.id) })}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150 ${
+                                isActive
+                                  ? "bg-[#ECFDF5] text-[#065F46] font-bold border-l-4 border-l-[#059669] shadow-xs"
+                                  : "text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A] font-medium"
+                              }`}
+                            >
+                              {/* Sub image or icon */}
+                              <div className={`relative flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border transition-all ${
+                                isActive
+                                  ? "border-[#A7F3D0] bg-white shadow-xs"
+                                  : "border-[#E2E8F0] bg-[#F8FAFC]"
+                              }`}>
+                                {sub.imageUrl ? (
+                                  <img
+                                    src={sub.imageUrl}
+                                    alt={sub.name}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                      (e.currentTarget.nextElementSibling as HTMLElement | null)?.style?.setProperty("display", "flex");
+                                    }}
+                                  />
+                                ) : null}
+                                <span className={`${sub.imageUrl ? "hidden" : "flex"} h-full w-full items-center justify-center text-[11px] font-bold uppercase ${
+                                  isActive ? "text-[#065F46]" : "text-[#94A3B8]"
+                                }`}>
+                                  {sub.name.charAt(0)}
+                                </span>
+                              </div>
+
+                              <span className="text-xs sm:text-[13px] flex-1 truncate">
+                                {sub.name}
+                              </span>
+
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+                                isActive ? "bg-[#D1FAE5] text-[#065F46]" : "bg-[#F1F5F9] text-[#64748B]"
+                              }`}>
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </nav>
+                  )}
+
+                  {/* Bottom B2B RFQ Banner */}
+                  <div className="p-4 border-t border-[#E2E8F0] bg-[#FAFAFA] mt-auto">
+                    <div className="flex items-start gap-2.5 mb-2">
+                      <div className="p-1.5 rounded-md bg-[#065F46] text-white flex-shrink-0 mt-0.5">
+                        <Package className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#0F172A]">Need Bulk Quantities?</p>
+                        <p className="text-[11px] text-[#64748B] leading-tight mt-0.5">
+                          Request direct wholesale quotes from verified suppliers.
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/rfq"
+                      className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#065F46] hover:bg-[#047857] text-white text-xs font-semibold shadow-xs transition-colors"
+                    >
+                      Post Buy Requirement (RFQ)
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                </div>
+              </aside>
+            )}
+
+            {/* ── RIGHT: Products Area ── */}
+            <div className="flex-1 min-w-0">
+              {/* Sort + count toolbar */}
+              <div className="flex flex-wrap items-center justify-between mb-4 gap-3 bg-white p-3 sm:p-3.5 rounded-xl border border-[#E2E8F0] shadow-xs">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs sm:text-sm font-semibold text-[#475569]">
+                    {isLoading ? (
+                      <span className="flex items-center gap-1.5 text-[#64748B]">
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        Loading products...
+                      </span>
+                    ) : (
+                      <>
+                        <span className="font-extrabold text-[#0F172A]">{sortedProducts.length}</span>{" "}
+                        product{sortedProducts.length === 1 ? "" : "s"} found
+                        {activeSubcategoryName && (
+                          <span className="text-[#64748B] font-normal">
+                            {" "}in <span className="text-[#065F46] font-semibold">{activeSubcategoryName}</span>
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </p>
+                  {activeSubCategoryId && (
+                    <button
+                      type="button"
+                      onClick={() => updateParams({ sub: null })}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] px-2 py-0.5 rounded-full hover:bg-[#D1FAE5] transition-colors"
+                    >
+                      <span>{activeSubcategoryName}</span>
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#64748B] hidden sm:inline font-medium">Sort:</span>
+                  <div className="relative">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => updateParams({ sort: e.target.value })}
+                      className="appearance-none rounded-lg border border-[#E2E8F0] bg-white pl-3 pr-8 py-1.5 text-xs font-semibold text-[#0F172A] outline-none hover:border-[#CBD5E1] focus:border-[#059669] focus:ring-1 focus:ring-[#059669] transition-all cursor-pointer shadow-xs"
+                    >
+                      {SORT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <SlidersHorizontal className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#94A3B8] pointer-events-none" />
+                  </div>
+                </div>
               </div>
-              <div className="mt-5 z-10">
-                <button className="rounded-xl bg-white text-[#0A4D3C] px-6 py-2.5 text-[13px] font-black hover:bg-[#F4F8F6] hover:shadow-lg transition-all shadow-sm uppercase tracking-wider">
-                  Shop Fresh
-                </button>
-              </div>
-              <div className="absolute -bottom-3 -right-2 h-36 w-36 opacity-90 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-700 z-0">
-                <img src="https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?auto=format&fit=crop&w=300&q=80" alt="" className="h-full w-full object-contain mix-blend-screen" />
-              </div>
+
+              {/* Products Grid or Empty State */}
+              {isLoading ? (
+                <div className="flex min-h-[400px] items-center justify-center text-[#64748B] bg-white rounded-2xl border border-[#E2E8F0]">
+                  <div className="text-center">
+                    <LoaderCircle className="mx-auto mb-3 h-8 w-8 animate-spin text-[#065F46]" />
+                    <span className="text-sm font-bold text-[#065F46]">Loading products...</span>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : sortedProducts.length === 0 ? (
+                <div className="rounded-2xl border border-[#E2E8F0] bg-white px-6 py-14 text-center shadow-xs">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46]">
+                    <Package className="h-8 w-8" />
+                  </div>
+                  <h3 className="font-sans text-xl font-bold text-[#0F172A]">
+                    {activeSubCategoryId
+                      ? `No products in ${activeSubcategoryName || "this subcategory"}`
+                      : currentCategory
+                        ? `Products not currently listed in ${currentCategory.name}`
+                        : "No products found"}
+                  </h3>
+                  <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B] leading-relaxed">
+                    {activeSubCategoryId
+                      ? "Suppliers have not listed products under this subcategory yet. You can view all category products or submit a bulk purchase requirement."
+                      : "Verified farmers and suppliers are continuously adding fresh inventory. Post a requirement to receive direct bids or explore other categories."}
+                  </p>
+                  <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                    {activeSubCategoryId && (
+                      <button
+                        type="button"
+                        onClick={() => updateParams({ sub: null })}
+                        className="inline-flex items-center justify-center rounded-xl bg-[#065F46] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#047857] transition-colors shadow-xs"
+                      >
+                        View all {currentCategory?.name || "products"}
+                      </button>
+                    )}
+                    <Link
+                      to="/rfq"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#065F46] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#047857] transition-colors shadow-xs"
+                    >
+                      Post Buy Requirement (RFQ)
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                    <Link
+                      to="/shop"
+                      className="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-5 py-2.5 text-xs font-bold text-[#0F172A] hover:bg-[#F8FAFC] transition-colors shadow-xs"
+                    >
+                      Browse all categories
+                    </Link>
+                  </div>
+
+                  {/* Explore other categories row */}
+                  {categories.length > 1 && (
+                    <div className="mt-10 pt-6 border-t border-[#E2E8F0]">
+                      <p className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-3">
+                        Explore other categories
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        {categories
+                          .filter((c) => c.id !== effectiveCategoryId)
+                          .slice(0, 6)
+                          .map((cat) => (
+                            <Link
+                              key={cat.id}
+                              to={getCategoryHref(cat)}
+                              className="px-3 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#FAFAFA] hover:bg-[#ECFDF5] hover:border-[#A7F3D0] hover:text-[#065F46] text-xs font-semibold text-[#475569] transition-all"
+                            >
+                              {cat.name}
+                            </Link>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 animate-scale-in">
+                  {sortedProducts.map((product) => (
+                    <ProductCard
+                      key={`${product.id}-${product.primaryVariant?.id || "single"}`}
+                      product={product}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-
-          {/* ── Toolbar: Search + Sort + Count ── */}
-          <div className="flex flex-col gap-4 rounded-3xl border border-[#E2E8F0]/80 bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-            {/* Search */}
-            <div className="flex items-center gap-2 flex-1 max-w-lg">
-              <div className="flex flex-1 items-center rounded-2xl bg-[#F8FAFC] px-4 py-3 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0A4D3C]/20 focus-within:border-transparent border border-transparent hover:border-[#E2E8F0] transition-all shadow-inner shadow-slate-100/50">
-                <Search className="mr-3 h-4 w-4 text-[#94A3B8] flex-shrink-0" />
-                <input
-                  type="text"
-                  value={draftQuery}
-                  onChange={(event) => setDraftQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      updateParams({ q: draftQuery.trim() || null });
-                    }
-                  }}
-                  className="w-full bg-transparent text-[15px] font-medium text-[#0A1628] outline-none placeholder:text-[#94A3B8]"
-                  placeholder={`Search in ${currentCategory?.name || "products"}...`}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => updateParams({ q: draftQuery.trim() || null })}
-                className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-[#0A4D3C] text-[#D4A853] hover:bg-[#0E5E4A] hover:text-white transition-all hover:shadow-lg hover:-translate-y-0.5 flex-shrink-0"
-              >
-                <Search className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Sort + count */}
-            <div className="flex items-center gap-4 flex-shrink-0 px-2 sm:px-0">
-              <span className="text-[13px] text-[#6B7B94] font-black uppercase tracking-wider hidden sm:inline">
-                {sortedProducts.length} result{sortedProducts.length === 1 ? "" : "s"}
-              </span>
-              <div className="h-6 w-px bg-[#E2E8F0] hidden sm:block" />
-              <div className="relative group">
-                 <select
-                   value={sortBy}
-                   onChange={(event) => updateParams({ sort: event.target.value })}
-                   className="appearance-none rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-4 pr-10 py-2.5 text-sm text-[#0A1628] outline-none hover:border-[#CBD5E1] focus:border-[#0A4D3C] focus:ring-1 focus:ring-[#0A4D3C] transition-all cursor-pointer font-bold shadow-sm"
-                 >
-                   {sortOptions.map((option) => (
-                     <option key={option.value} value={option.value}>
-                       {option.label}
-                     </option>
-                   ))}
-                 </select>
-                 <SlidersHorizontal className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8] pointer-events-none group-hover:text-[#0A1628] transition-colors" />
-              </div>
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="flex min-h-[400px] items-center justify-center text-[#6B7B94]">
-              <div className="text-center">
-                <LoaderCircle className="mx-auto mb-3 h-8 w-8 animate-spin text-[#0A4D3C]" />
-                <span className="text-sm font-bold text-[#0A4D3C]">Loading products...</span>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-              {error}
-            </div>
-          ) : sortedProducts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#0A4D3C]/20 bg-[#F4F8F6] px-6 py-20 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#E6F4F0]">
-                <Search className="h-7 w-7 text-[#0A4D3C]" />
-              </div>
-              <h3 className="font-sans text-lg font-black text-[#0A4D3C]">
-                {effectiveCategoryId ? "Products not available in this category." : "No products found"}
-              </h3>
-              <p className="mx-auto mt-2 max-w-sm text-sm text-[#7C9A90] font-medium">
-                {effectiveCategoryId
-                  ? "There are currently no products listed under this category. Please explore other categories or check back soon."
-                  : "Try broader terms or grocery names like rice, milk, atta, or dal."}
-              </p>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                {activeSubCategoryId || keyword ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateParams({
-                        q: null,
-                        sub: null,
-                        trending: null,
-                        sort: "featured",
-                      })
-                    }
-                    className="inline-flex items-center justify-center rounded-xl bg-[#0A4D3C] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0E5E4A] transition-colors shadow-sm"
-                  >
-                    Clear filters
-                  </button>
-                ) : null}
-                <Link
-                  to="/shop"
-                  className="inline-flex items-center justify-center rounded-xl border border-[#0A4D3C]/30 bg-white px-5 py-2.5 text-sm font-bold text-[#0A4D3C] hover:bg-[#F4F8F6] transition-colors shadow-sm"
-                >
-                  Browse all categories
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:gap-6 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 animate-scale-in">
-              {sortedProducts.map((product) => (
-                <ProductCard key={`${product.id}-${product.primaryVariant?.id || "single"}`} product={product} />
-              ))}
-            </div>
-          )}
         </motion.div>
       )}
     </div>

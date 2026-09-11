@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
+import { toast } from "sonner";
 import { AuthModal } from "../components/AuthModal";
 import { CallModal } from "../components/CallModal";
 import { CartDrawer } from "../components/CartDrawer";
@@ -17,10 +18,20 @@ export function MainLayout() {
   const profile = useAuthStore((state) => state.profile);
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const hydrateFromStorage = useAuthStore((state) => state.hydrateFromStorage);
+  const openAuthModal = useAuthStore((state) => state.openAuthModal);
   const hydrateLocation = useLocationStore((state) => state.hydrateFromStorage);
   const requestCurrentLocation = useLocationStore((state) => state.requestCurrentLocation);
   const location = useLocationStore((state) => state.location);
   const isLocationHydrated = useLocationStore((state) => state.isHydrated);
+
+  useEffect(() => {
+    const handleCleanAuthOpen = () => {
+      openAuthModal();
+    };
+
+    window.addEventListener("kfpcl:open-auth-modal-clean", handleCleanAuthOpen);
+    return () => window.removeEventListener("kfpcl:open-auth-modal-clean", handleCleanAuthOpen);
+  }, [openAuthModal]);
 
   useEffect(() => {
     hydrateFromStorage();

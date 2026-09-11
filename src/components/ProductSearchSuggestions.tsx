@@ -55,7 +55,7 @@ export default function ProductSearchSuggestions({ query, onSelect }: ProductSea
   return (
     <div
       key={normalizedQuery.toLowerCase()}
-      className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 overflow-hidden rounded-xl border border-dark-200 bg-white shadow-card animate-slide-down"
+      className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border border-dark-200 bg-white shadow-xl opacity-100"
       role="listbox"
       aria-label="Product suggestions"
     >

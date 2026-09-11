@@ -81,7 +81,7 @@ export function AppShowcase() {
       <section style={{
         position:"relative", overflow:"hidden",
         background:"linear-gradient(135deg,#050d18 0%,#0A1628 45%,#071019 100%)",
-        padding:"80px 24px 90px",
+        padding:"clamp(44px, 7vw, 80px) clamp(14px, 3.5vw, 24px) clamp(50px, 8vw, 90px)",
       }}>
         {/* Blobs */}
         <div style={{ position:"absolute", top:-130, left:-90, width:480, height:480,
@@ -206,7 +206,7 @@ export function AppShowcase() {
             </div>
 
             {/* ── INFO PANEL ── */}
-            <div style={{ flex:1, minWidth:290, maxWidth:440 }}>
+            <div style={{ flex:1, minWidth:260, maxWidth:440, width:"100%" }}>
 
               {/* App identity */}
               <div style={{ display:"flex", alignItems:"center", gap:14,
@@ -329,16 +329,22 @@ export function AppShowcase() {
           </div>
 
           {/* Stats */}
-          <div style={{ display:"flex", justifyContent:"center", flexWrap:"wrap",
-            marginTop:68, borderTop:"1px solid rgba(255,255,255,.06)", paddingTop:40 }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-0" style={{
+            marginTop: 48,
+            borderTop: "1px solid rgba(255,255,255,.06)",
+            paddingTop: 32,
+          }}>
             {[
               { v:"Fast",   l:"Delivery"      },
               { v:"500+",   l:"Products"      },
               { v:"4.8 ★",  l:"App Rating"    },
               { v:"Free",   l:"Download"      },
             ].map((s, i, arr) => (
-              <div key={s.l} style={{ textAlign:"center", padding:"0 36px",
-                borderRight: i < arr.length-1 ? "1px solid rgba(255,255,255,.07)" : "none" }}>
+              <div key={s.l} style={{
+                textAlign: "center",
+                padding: "8px 12px",
+                borderRight: (i % 2 === 0 && i < arr.length - 1) ? "none" : (i < arr.length - 1 ? "1px solid rgba(255,255,255,.07)" : "none"),
+              }} className="sm:!border-r sm:last:!border-none">
                 <div style={{ fontSize:"clamp(20px,3.2vw,32px)", fontWeight:900,
                   background:"linear-gradient(90deg,#1E5AFA,#D4A853)",
                   WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>

@@ -60,3 +60,13 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .slice(0, 2);
 }
+
+// Regex pattern matching strictly @gmail.com
+export const GMAIL_REGEX = /^[A-Za-z0-9._%+-]+@gmail\.com$/i;
+
+// Example validation helper function
+export const isValidGmail = (email?: string | null): boolean => {
+  if (!email) return false;
+  return GMAIL_REGEX.test(email.trim());
+};
+

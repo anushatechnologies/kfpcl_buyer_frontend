@@ -23,15 +23,15 @@ export function Footer() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               <img
                 src="/images/image-logo.png"
                 alt={APP_COPY.brand}
-                className="h-14 w-14 rounded-[1.2rem] border border-white/15 bg-white object-contain p-1 shadow-[0_12px_28px_rgba(0,0,0,0.3)]"
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-[1.2rem] border border-white/15 bg-white object-contain p-1 shadow-[0_12px_28px_rgba(0,0,0,0.3)] flex-shrink-0"
               />
-              <div>
-                <div className="font-sans text-3xl font-bold">{APP_COPY.brand}</div>
-                <div className="text-xs uppercase tracking-[0.24em] text-white/55">
+              <div className="min-w-0">
+                <div className="font-sans text-2xl sm:text-3xl font-bold tracking-tight truncate">{APP_COPY.brand}</div>
+                <div className="text-[10px] sm:text-xs uppercase tracking-[0.2em] sm:tracking-[0.24em] text-white/55 truncate">
                   Professional grocery ordering experience
                 </div>
               </div>
@@ -101,18 +101,6 @@ export function Footer() {
                   Terms of service
                 </span>
               </Link>
-              <Link className="group block transition hover:text-white" to="/cart">
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-1 w-1 rounded-full bg-[#D4A853]/50 transition-all duration-300 group-hover:w-3 group-hover:bg-[#D4A853]" />
-                  Cart
-                </span>
-              </Link>
-              <Link className="group block transition hover:text-white" to="/checkout">
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-1 w-1 rounded-full bg-[#D4A853]/50 transition-all duration-300 group-hover:w-3 group-hover:bg-[#D4A853]" />
-                  Checkout
-                </span>
-              </Link>
             </div>
           </motion.div>
 
@@ -128,7 +116,7 @@ export function Footer() {
                 <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
                   <MapPin className="h-4 w-4 text-[#D4A853]" />
                 </div>
-                <span> C99F+VXG, Madhura Nagar Colony, Gachibowli, Hyderabad, Telangana 500104.</span>
+                <span className="min-w-0 flex-1 leading-relaxed"> C99F+VXG, Madhura Nagar Colony, Gachibowli, Hyderabad, Telangana 500104.</span>
               </div>
               <div className="flex gap-3">
                 <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
@@ -140,14 +128,25 @@ export function Footer() {
                 <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
                   <Mail className="h-4 w-4 text-[#D4A853]" />
                 </div>
-                <div>
-                                      <a className="block transition hover:text-white" href={`mailto:${APP_COPY.supportEmail}`}>
+                <div className="min-w-0 flex-1">
+                  <a
+                    className="block transition hover:text-white break-all sm:break-normal"
+                    href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(APP_COPY.supportEmail)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     {APP_COPY.supportEmail}
                   </a>
-                                      <a className="block transition hover:text-white" href={`mailto:${APP_COPY.backupEmail}`}>
-                    {APP_COPY.backupEmail}
-                  </a>
-
+                  {APP_COPY.backupEmail && APP_COPY.backupEmail !== APP_COPY.supportEmail && (
+                    <a
+                      className="block transition hover:text-white break-all sm:break-normal"
+                      href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(APP_COPY.backupEmail)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {APP_COPY.backupEmail}
+                    </a>
+                  )}
                 </div>
               </div>
             </div>

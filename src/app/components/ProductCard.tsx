@@ -172,7 +172,7 @@ export function ProductCard({ product }: ProductCardProps) {
           >
             <Link
               to={getProductHref(product)}
-              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg bg-[#0A4D3C] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-[#0E5E4A]"
+              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg bg-[#0A4D3C] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-[#0E5E4A] min-w-0"
               aria-label={`Request an RFQ for ${product.name}`}
             >
               <FileText className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
@@ -190,7 +190,7 @@ export function ProductCard({ product }: ProductCardProps) {
                   productName: product.name,
                 });
               }}
-              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg border border-[#0A4D3C]/20 bg-[#F0FBF7] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-[#0A4D3C] transition-colors hover:bg-[#0A4D3C]/10 cursor-pointer"
+              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg border border-[#0A4D3C]/20 bg-[#F0FBF7] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-[#0A4D3C] transition-colors hover:bg-[#0A4D3C]/10 cursor-pointer min-w-0"
               aria-label={`Call about ${product.name}`}
             >
               <Phone className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
@@ -200,7 +200,7 @@ export function ProductCard({ product }: ProductCardProps) {
               href={whatsappHref}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg bg-[#25D366] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black text-white transition-colors hover:bg-[#1FB957]"
+              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg bg-[#25D366] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black text-white transition-colors hover:bg-[#1FB957] min-w-0"
               aria-label={`Message about ${product.name} on WhatsApp`}
             >
               <MessageCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />

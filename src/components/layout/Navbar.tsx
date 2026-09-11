@@ -289,6 +289,22 @@ export default function Navbar() {
 
             {/* Right: Actions & Auth */}
             <div className="flex items-center gap-4 flex-shrink-0">
+              {/* RFQ Nav Link — buyers only */}
+              {isClient && isAuthenticated && user?.role === 'buyer' && (
+                <Link
+                  href="/rfq"
+                  className={cn(
+                    'text-sm font-semibold transition-colors flex items-center gap-1.5 px-2',
+                    pathname === '/rfq'
+                      ? 'text-brand-700 underline underline-offset-[6px] decoration-2 decoration-brand-600'
+                      : 'text-dark-700 hover:text-brand-700'
+                  )}
+                >
+                  <FileText className="h-4 w-4" />
+                  RFQ
+                </Link>
+              )}
+
               <button
                 onClick={handleSellClick}
                 className="text-sm font-semibold text-brand-700 hover:text-brand-800 transition-colors flex items-center gap-1.5 px-2 cursor-pointer focus:outline-none bg-transparent border-0"
@@ -440,14 +456,6 @@ export default function Navbar() {
                           >
                             <ShoppingCart className="h-4 w-4" />
                             My Orders
-                          </Link>
-                          <Link
-                            href="/rfq"
-                            onClick={() => setProfileDropdown(false)}
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-dark-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
-                          >
-                            <FileText className="h-4 w-4" />
-                            My RFQs &amp; Enquiries
                           </Link>
                         </>
                       ) : (
@@ -642,10 +650,10 @@ export default function Navbar() {
                     <Link
                       href="/rfq"
                       onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-dark-200 text-base font-semibold text-dark-800 hover:bg-dark-50 transition-colors"
+                      className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-brand-200 bg-brand-50 text-base font-semibold text-brand-700 hover:bg-brand-100 transition-colors"
                     >
                       <FileText className="h-5 w-5" />
-                      My RFQs &amp; Enquiries
+                      My RFQs
                     </Link>
                   </>
                 )}

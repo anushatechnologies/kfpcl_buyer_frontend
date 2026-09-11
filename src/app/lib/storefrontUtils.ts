@@ -153,3 +153,13 @@ export const sortProducts = (products: Product[], sortBy: ProductSort) => {
 export const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+// Regex pattern matching strictly @gmail.com
+export const GMAIL_REGEX = /^[A-Za-z0-9._%+-]+@gmail\.com$/i;
+
+// Example validation helper function
+export const isValidGmail = (email?: string | null): boolean => {
+  if (!email) return false;
+  return GMAIL_REGEX.test(email.trim());
+};
+

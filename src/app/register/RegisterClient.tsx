@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -28,6 +28,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@/api/auth.api';
 import AuthBackground from '@/components/layout/AuthBackground';
+import { getCitiesForState, fetchCitiesForState } from '@/data/indianStatesCities';
 
 /* ──────────────────────────── REGISTRATION DATA LISTS ──────────────────────────── */
 
@@ -139,6 +140,7 @@ export default function RegisterClient() {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
@@ -155,6 +157,41 @@ export default function RegisterClient() {
       panNumber: '',
     },
   });
+
+  const selectedState = watch('state');
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+
+  useEffect(() => {
+    if (!selectedState) {
+      setAvailableCities([]);
+      setValue('city', '');
+      return;
+    }
+
+    // Always clear city field when state changes
+    setValue('city', '');
+
+    // Instantly provide verified genuine cities
+    const instant = getCitiesForState(selectedState);
+    setAvailableCities(instant);
+
+    let isCurrent = true;
+    setIsLoadingCities(true);
+    fetchCitiesForState(selectedState)
+      .then((cities) => {
+        if (isCurrent && cities.length > 0) {
+          setAvailableCities(cities);
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingCities(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedState, setValue]);
 
   // Handle PAN image upload
   const handlePanFileSelect = (file: File | null) => {
@@ -669,13 +706,26 @@ export default function RegisterClient() {
                   </label>
                   <div className="relative">
                     <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400 pointer-events-none" />
-                    <input
+                    <select
                       id="city"
-                      type="text"
-                      placeholder="Enter city / district"
-                      className={`${inputClass(!!errors.city)} pl-10`}
+                      disabled={!selectedState}
+                      className={`${inputClass(!!errors.city)} pl-10 pr-9 appearance-none cursor-pointer bg-white disabled:bg-dark-100 disabled:cursor-not-allowed`}
                       {...register('city')}
-                    />
+                    >
+                      <option value="" disabled>
+                        {!selectedState
+                          ? 'Select State first'
+                          : isLoadingCities
+                          ? 'Loading cities...'
+                          : 'Select City'}
+                      </option>
+                      {availableCities.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400 pointer-events-none" />
                   </div>
                   {errors.city && (
                     <p className={errorClass}>

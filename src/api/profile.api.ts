@@ -18,11 +18,14 @@ export interface CustomerProfileDto {
 
 export interface UpdateProfilePayload {
   fullName?: string;
+  name?: string;
   email?: string;
   companyName?: string;
   businessType?: string;
   state?: string;
   city?: string;
+  phoneNumber?: string;
+  phone?: string;
 }
 
 export const profileApi = {
@@ -57,8 +60,24 @@ export const profileApi = {
    * Auth Level: Bearer Token
    */
   updateProfile: async (payload: UpdateProfilePayload): Promise<CustomerProfileDto> => {
-    const response = await apiClient.put<any>('/api/customer/profile', payload);
-    const data = response.data?.data || response.data;
+    const body = {
+      ...payload,
+      fullName: payload.fullName || payload.name,
+      name: payload.fullName || payload.name,
+      phone: payload.phoneNumber || payload.phone,
+      phoneNumber: payload.phoneNumber || payload.phone,
+    };
+    let response: any;
+    try {
+      response = await apiClient.put<any>('/api/customer/profile', body);
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        response = await apiClient.put<any>('/customer/profile', body);
+      } else {
+        throw err;
+      }
+    }
+    const data = response?.data?.data || response?.data;
     return {
       id: data?.id,
       phoneNumber: data?.phoneNumber || data?.phone || '',

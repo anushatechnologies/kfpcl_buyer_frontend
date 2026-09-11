@@ -8,17 +8,39 @@ const PAGE_SIZE = 10;
 const FILTERS = ["", "SUBMITTED", "RESPONDED", "ACCEPTED", "REJECTED", "CLOSED"] as const;
 
 const statusStyle = (status?: string) => {
-  switch ((status || "SUBMITTED").toUpperCase()) {
-    case "RESPONDED": return "border-blue-200 bg-blue-50 text-blue-700";
-    case "ACCEPTED": return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "REJECTED": return "border-red-200 bg-red-50 text-red-700";
-    case "CLOSED": return "border-slate-200 bg-slate-100 text-slate-700";
-    default: return "border-amber-200 bg-amber-50 text-amber-700";
+  const norm = (status || "PENDING").toUpperCase();
+  switch (norm) {
+    case "RESPONDED":
+    case "QUOTED":
+      return "border-blue-200 bg-blue-50 text-blue-700";
+    case "ACCEPTED":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "REJECTED":
+      return "border-red-200 bg-red-50 text-red-700";
+    case "CLOSED":
+      return "border-slate-200 bg-slate-100 text-slate-700";
+    default:
+      return "border-amber-200 bg-amber-50 text-amber-700";
   }
 };
 
 const formatStatus = (status?: string) => {
-  const normalized = (status || "SUBMITTED").toLowerCase();
+  const normalized = (status || "PENDING").toLowerCase();
+  if (normalized === "submitted" || normalized === "open" || normalized === "pending") {
+    return "Pending";
+  }
+  if (normalized === "responded" || normalized === "quoted") {
+    return "Responded";
+  }
+  if (normalized === "accepted") {
+    return "Accepted";
+  }
+  if (normalized === "rejected") {
+    return "Rejected";
+  }
+  if (normalized === "closed") {
+    return "Closed";
+  }
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
@@ -27,13 +49,30 @@ const formatDate = (value?: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? "Recently"
-    : new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+    : new Intl.DateTimeFormat("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(date);
+};
+
+const getRfqCode = (rfq: RFQ) => {
+  if (rfq.rfqCode) return rfq.rfqCode;
+  const num = Number(rfq.id);
+  if (!Number.isNaN(num) && num > 0) {
+    return `RFQ-2026-${String(num).padStart(6, "0")}`;
+  }
+  return `RFQ #${rfq.id}`;
 };
 
 const getErrorMessage = (error: any, fallback: string) =>
   error?.response?.data?.message || error?.response?.data?.error || error?.message || fallback;
 
-export function BuyerRFQDashboard() {
+interface BuyerRFQDashboardProps {
+  onAdminReplyView?: (isViewing: boolean) => void;
+}
+
+export function BuyerRFQDashboard({ onAdminReplyView }: BuyerRFQDashboardProps) {
   const [rfqs, setRfqs] = useState<RFQ[]>([]);
   const [selectedRfq, setSelectedRfq] = useState<RFQ | null>(null);
   const [statusFilter, setStatusFilter] = useState<(typeof FILTERS)[number]>("");
@@ -57,6 +96,9 @@ export function BuyerRFQDashboard() {
       setPage(result.currentPage);
       setTotalPages(Math.max(result.totalPages, 1));
       setTotalElements(result.totalElements);
+      if (result.rfqs.length > 0) {
+        setSelectedRfq((current) => (current ? result.rfqs.find((r) => r.id === current.id) || result.rfqs[0] : result.rfqs[0]));
+      }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to load your RFQs."));
     } finally {
@@ -91,6 +133,21 @@ export function BuyerRFQDashboard() {
     const status = String(selectedRfq.status).toUpperCase();
     return status === "RESPONDED" || Boolean(selectedRfq.response || selectedRfq.quotes?.length);
   }, [selectedRfq]);
+
+  // Notify parent whenever the selected RFQ changes so it can hide/show the tab bar
+  useEffect(() => {
+    if (!onAdminReplyView) return;
+    if (!selectedRfq) {
+      onAdminReplyView(false);
+      return;
+    }
+    const status = String(selectedRfq.status).toUpperCase();
+    const hasAdminReply =
+      status === "RESPONDED" ||
+      status === "QUOTED" ||
+      Boolean(selectedRfq.response || selectedRfq.quotes?.length || selectedRfq.amount || selectedRfq.quotedPrice);
+    onAdminReplyView(hasAdminReply);
+  }, [selectedRfq, onAdminReplyView]);
 
   const acceptQuotation = async () => {
     if (!selectedRfq) return;
@@ -166,12 +223,31 @@ export function BuyerRFQDashboard() {
       ].filter((entry): entry is [string, string] => Boolean(entry[1]))
     : [];
 
+  const buyerDetailsText = useMemo(() => {
+    if (!selectedRfq) return "";
+    const parts: string[] = [];
+    if (selectedRfq.buyerName && !selectedRfq.description?.includes(selectedRfq.buyerName)) {
+      parts.push(`Buyer Name: ${selectedRfq.buyerName}`);
+    }
+    if (selectedRfq.buyerPhone && !selectedRfq.description?.includes(selectedRfq.buyerPhone)) {
+      parts.push(`Buyer Mobile: ${selectedRfq.buyerPhone}`);
+    }
+    if (selectedRfq.subject && !selectedRfq.description?.includes(selectedRfq.subject)) {
+      parts.push(`Subject: ${selectedRfq.subject}`);
+    }
+    const message = selectedRfq.buyerMessage || selectedRfq.description || selectedRfq.specifications;
+    if (message && !parts.some((p) => p.includes(message))) {
+      parts.push(message);
+    }
+    return parts.join(" ") || selectedRfq.description || "";
+  }, [selectedRfq]);
+
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(330px,0.8fr)]">
-      <div className="rounded-[2rem] border border-[#E2E8F0] bg-white p-5 shadow-[0_18px_45px_rgba(10,22,40,0.05)] sm:p-7">
+      <div className="rounded-[1.6rem] sm:rounded-[2rem] border border-[#E2E8F0] bg-white p-4 sm:p-7 shadow-[0_18px_45px_rgba(10,22,40,0.05)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#D4A853]">Buyer workspace</p>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#D4A853]">BUYER WORKSPACE</p>
             <h2 className="mt-2 text-2xl font-bold text-[#0A1628]">My RFQs</h2>
             <p className="mt-2 text-sm leading-6 text-[#6B7B94]">Review requests, admin quotations, and your decisions.</p>
           </div>
@@ -179,7 +255,7 @@ export function BuyerRFQDashboard() {
             type="button"
             onClick={() => void loadRFQs(page)}
             disabled={isLoading}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#CFE1D8] px-4 py-2.5 text-sm font-bold text-[#0A4D3C] transition hover:bg-[#F2F8F5] disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#CFE1D8] px-4 py-2.5 text-sm font-bold text-[#0A4D3C] transition hover:bg-[#F2F8F5] disabled:opacity-60 cursor-pointer"
           >
             <RefreshCcw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} /> Refresh
           </button>
@@ -213,10 +289,10 @@ export function BuyerRFQDashboard() {
               key={rfq.id}
               type="button"
               onClick={() => void openDetails(rfq)}
-              className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:border-[#9DB7AD] hover:shadow-md ${selectedRfq?.id === rfq.id ? "border-[#0A4D3C] bg-[#F7FBF8]" : "border-[#E2E8F0] bg-white"}`}
+              className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:border-[#9DB7AD] hover:shadow-md cursor-pointer ${selectedRfq?.id === rfq.id ? "border-[#0A4D3C] bg-[#F7FBF8]" : "border-[#E2E8F0] bg-white"}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="font-mono text-xs font-bold text-[#0A4D3C]">{rfq.rfqCode || `RFQ #${rfq.id}`}</span>
+                <span className="font-mono text-xs font-bold text-[#0A4D3C]">{getRfqCode(rfq)}</span>
                 <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusStyle(rfq.status)}`}>{formatStatus(rfq.status)}</span>
               </div>
               <h3 className="mt-3 text-base font-bold text-[#0A1628]">{rfq.productName || rfq.title}</h3>
@@ -240,7 +316,7 @@ export function BuyerRFQDashboard() {
         )}
       </div>
 
-      <aside className="rounded-[2rem] border border-[#E2E8F0] bg-[#FBFCFE] p-5 shadow-[0_18px_45px_rgba(10,22,40,0.04)] sm:p-7">
+      <aside className="rounded-[1.6rem] sm:rounded-[2rem] border border-[#E2E8F0] bg-[#FBFCFE] p-4 sm:p-7 shadow-[0_18px_45px_rgba(10,22,40,0.04)]">
         {!selectedRfq ? (
           <div className="flex min-h-72 flex-col items-center justify-center text-center">
             <Send className="h-10 w-10 text-[#D4A853]" />
@@ -253,32 +329,71 @@ export function BuyerRFQDashboard() {
           <div>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-mono text-xs font-bold text-[#0A4D3C]">{selectedRfq.rfqCode || `RFQ #${selectedRfq.id}`}</p>
+                <p className="font-mono text-xs font-bold text-[#0A4D3C]">{getRfqCode(selectedRfq)}</p>
                 <h2 className="mt-2 text-xl font-bold text-[#0A1628]">{selectedRfq.productName || selectedRfq.title}</h2>
               </div>
               <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusStyle(selectedRfq.status)}`}>{formatStatus(selectedRfq.status)}</span>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 rounded-2xl border border-[#E2E8F0] bg-white p-4 text-sm">
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 rounded-2xl border border-[#E2E8F0] bg-white p-3.5 sm:p-4 text-sm">
               <div><span className="block text-xs text-[#6B7B94]">Quantity</span><strong className="text-[#0A1628]">{selectedRfq.quantity} {selectedRfq.unit}</strong></div>
               <div><span className="block text-xs text-[#6B7B94]">Delivery location</span><strong className="text-[#0A1628]">{selectedRfq.deliveryLocation || "—"}</strong></div>
             </div>
-            {selectedRfq.description && <p className="mt-4 rounded-xl bg-white p-4 text-sm leading-6 text-[#4F607A]">{selectedRfq.description}</p>}
+            {buyerDetailsText && (
+              <p className="mt-4 rounded-xl bg-white p-4 text-sm leading-6 text-[#4F607A] border border-gray-100 shadow-sm">
+                {buyerDetailsText}
+              </p>
+            )}
 
-            {(quotation || quotationAmount > 0 || String(selectedRfq.status).toUpperCase() === "RESPONDED") ? (
-              <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Admin quotation</p>
-                <div className="mt-3 flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-2xl font-bold text-[#0A1628]">₹{Number(quotationAmount).toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-[#5C6C86]">{quotation?.unitPrice || quotation?.offeredPrice ? `per ${selectedRfq.unit}` : 'Total Amount'}</p>
+            {(quotation || quotationAmount > 0 || String(selectedRfq.status).toUpperCase() === "RESPONDED") ? (() => {
+              const unitPrice = Number(quotationAmount);
+              const qty = Number(selectedRfq.quantity) || 1;
+              const totalAmount = unitPrice * qty;
+              const isUnitBased = Boolean(quotation?.unitPrice || quotation?.offeredPrice);
+
+              return (
+                <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Admin quotation</p>
+
+                  {/* Unit price row */}
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] text-[#5C6C86] mb-0.5">{isUnitBased ? `Unit price (per ${selectedRfq.unit})` : "Quoted amount"}</p>
+                      <p className="text-2xl font-bold text-[#0A1628]">₹{unitPrice.toLocaleString("en-IN")}</p>
+                    </div>
+                    {quotationLeadTime && (
+                      <p className="text-right text-xs font-semibold text-[#31415E]">
+                        Lead time<br />
+                        <strong className="text-sm font-bold text-[#0A1628]">{quotationLeadTime}</strong>
+                      </p>
+                    )}
                   </div>
-                  {quotationLeadTime && <p className="text-right text-xs font-semibold text-[#31415E]">Lead time<br /><strong className="text-sm font-bold text-[#0A1628]">{quotationLeadTime}</strong></p>}
+
+                  {/* Total amount row — quantity × unit price */}
+                  {isUnitBased && qty > 1 && (
+                    <div className="mt-3 rounded-xl border border-blue-200 bg-white px-4 py-3">
+                      <p className="text-[11px] font-semibold text-[#5C6C86]">
+                        Total amount <span className="text-[#94A3B8]">({qty} {selectedRfq.unit} × ₹{unitPrice.toLocaleString("en-IN")})</span>
+                      </p>
+                      <p className="mt-0.5 text-xl font-black text-[#0A4D3C]">₹{totalAmount.toLocaleString("en-IN")}</p>
+                    </div>
+                  )}
+
+                  {/* Flat total (not unit-based) */}
+                  {!isUnitBased && (
+                    <div className="mt-3 rounded-xl border border-blue-200 bg-white px-4 py-3">
+                      <p className="text-[11px] font-semibold text-[#5C6C86]">Total amount</p>
+                      <p className="mt-0.5 text-xl font-black text-[#0A4D3C]">₹{unitPrice.toLocaleString("en-IN")}</p>
+                    </div>
+                  )}
+
+                  {quotation?.notes && <p className="mt-3 text-sm leading-6 text-[#31415E]">{quotation.notes}</p>}
                 </div>
-                {quotation?.notes && <p className="mt-3 text-sm leading-6 text-[#31415E]">{quotation.notes}</p>}
+              );
+            })() : (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-[#FFFDF5] p-4 text-sm leading-6 text-amber-900">
+                Your RFQ has been received. An admin quotation will appear here once it is ready.
               </div>
-            ) : (
-              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">Your RFQ has been received. An admin quotation will appear here once it is ready.</div>
             )}
 
             {String(selectedRfq.status).toUpperCase() === "ACCEPTED" && (

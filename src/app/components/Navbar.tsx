@@ -39,9 +39,47 @@ export interface AppNotification {
   type: "order" | "rfq" | "stock" | "payment" | "info";
   title: string;
   body: string;
-  time: string;
+  /** Raw ISO 8601 timestamp from the backend (e.g. "2025-09-11T09:30:00Z") */
+  createdAt: string;
   read: boolean;
   targetPath?: string;
+}
+
+/** Returns the exact real time and date formatted for the user's local timezone (e.g., "Today, 10:45 AM" or "11 Sep, 10:45 AM"). */
+function formatNotifTime(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+
+  const timeStr = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  const now = new Date();
+
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear();
+
+  if (isToday) {
+    return `Today, ${timeStr}`;
+  }
+  if (isYesterday) {
+    return `Yesterday, ${timeStr}`;
+  }
+
+  const dateStr = d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}),
+  });
+
+  return `${dateStr}, ${timeStr}`;
 }
 
 export function Navbar() {
@@ -170,9 +208,7 @@ export function Navbar() {
           type,
           title: item.title,
           body: item.body,
-          time: item.createdAt
-            ? new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : "Recent",
+          createdAt: item.createdAt || "",
           read: item.read,
           targetPath: item.targetPath,
         };
@@ -379,31 +415,10 @@ export function Navbar() {
   const showSuggestionPanel = showSearchSuggestions && (trimmedQuery.length > 0 || isSearchingSuggestions || recentSearches.length > 0);
 
   const suggestionsDropdownInner = (
-    <div className="flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EEF2F7] px-4 py-3">
-        <div>
-          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#6B7B94]">
-            Instant search
-          </div>
-          <div className="mt-1 text-sm text-[#6B7B94]">
-            {trimmedQuery
-              ? `Instant matches for "${trimmedQuery}" • typo-friendly and local-keyword aware`
-              : "Start typing to discover products"}
-          </div>
-        </div>
-        {trimmedQuery ? (
-          <button
-            type="button"
-            onClick={() => handleSearchSubmit()}
-            className="inline-flex items-center justify-center rounded-full bg-[#0A4D3C] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white hover:bg-[#0E5E4A] transition-colors"
-          >
-            Search all
-          </button>
-        ) : null}
-      </div>
+    <div className="flex flex-col bg-white">
 
       {!trimmedQuery && recentSearches.length > 0 ? (
-        <div className="border-b border-[#EEF2F7] px-4 py-4">
+        <div className="border-b border-[#EEF2F7] bg-white px-4 py-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#6B7B94]">
             Recent searches
           </div>
@@ -426,7 +441,7 @@ export function Navbar() {
       ) : null}
 
       {!trimmedQuery ? (
-        <div className="border-b border-[#EEF2F7] px-4 py-4">
+        <div className="border-b border-[#EEF2F7] bg-white px-4 py-4">
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#6B7B94]">
             Trending searches
           </div>
@@ -449,12 +464,12 @@ export function Navbar() {
       ) : null}
 
       {isSearchingSuggestions ? (
-        <div className="flex items-center gap-2 px-4 py-5 text-sm text-[#6B7B94]">
+        <div className="flex items-center gap-2 bg-white px-4 py-5 text-sm text-[#6B7B94]">
           <LoaderCircle className="h-4 w-4 animate-spin" />
           Looking for matching products...
         </div>
       ) : suggestions.length > 0 ? (
-        <div className="max-h-[440px] space-y-2 overflow-y-auto bg-[#FAFBFD] p-2.5">
+        <div className="max-h-[440px] space-y-2 overflow-y-auto bg-white p-2.5">
           {suggestions.map((suggestion) => (
             <button
               type="button"
@@ -511,7 +526,7 @@ export function Navbar() {
           </button>
         </div>
       ) : trimmedQuery ? (
-        <div className="px-4 py-5 text-sm text-[#6B7B94]">
+        <div className="bg-white px-4 py-5 text-sm text-[#6B7B94]">
           No instant matches yet. Smart search will still check spellings and local keywords for "{trimmedQuery}".
         </div>
       ) : null}
@@ -585,10 +600,12 @@ export function Navbar() {
                   <p className="text-[11px] text-[#64748B] leading-relaxed line-clamp-2">
                     {notif.body}
                   </p>
-                  <p className="mt-1 flex items-center gap-1 text-[10px] text-[#94A3B8]">
-                    <Clock className="h-2.5 w-2.5" />
-                    {notif.time}
-                  </p>
+                  {notif.createdAt && (
+                    <p className="mt-1 flex items-center gap-1 text-[10px] text-[#94A3B8]">
+                      <Clock className="h-2.5 w-2.5" />
+                      {formatNotifTime(notif.createdAt)}
+                    </p>
+                  )}
                 </div>
               </div>
             );
@@ -628,33 +645,15 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Menu Options: My Profile, My Orders, My RFQs, Sign Out */}
+      {/* Menu Options: My Profile, Sign Out */}
       <div className="flex flex-col gap-1">
         <Link
-          to="/account"
+          to="/account?tab=profile"
           onClick={() => setShowAccountMenu(false)}
           className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[#0A1628] transition hover:bg-[#F0F7F4] hover:text-[#0A4D3C]"
         >
           <User className="h-4 w-4 text-[#0A4D3C]" />
           <span>My Profile</span>
-        </Link>
-
-        <Link
-          to="/account?tab=orders"
-          onClick={() => setShowAccountMenu(false)}
-          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[#0A1628] transition hover:bg-[#F0F7F4] hover:text-[#0A4D3C]"
-        >
-          <ShoppingBag className="h-4 w-4 text-[#0A4D3C]" />
-          <span>My Orders</span>
-        </Link>
-
-        <Link
-          to="/account?tab=rfqs"
-          onClick={() => setShowAccountMenu(false)}
-          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[#0A1628] transition hover:bg-[#F0F7F4] hover:text-[#0A4D3C]"
-        >
-          <FileText className="h-4 w-4 text-[#0A4D3C]" />
-          <span>My RFQs</span>
         </Link>
 
         <div className="my-1 border-t border-[#EEF2F7]" />
@@ -678,18 +677,18 @@ export function Navbar() {
           <div className="relative z-20 flex items-center justify-between gap-4">
             
             {/* Left section: Logo, Name, Compact Location for desktop */}
-            <div className="flex shrink-0 items-center gap-3">
-              <Link to="/" className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3 min-w-0">
+              <Link to="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <img
                   src="/images/image-logo.png"
                   alt={APP_COPY.brand}
-                  className="h-10 w-10 rounded-xl border border-[#E2E8F0]/80 bg-white object-cover shadow-sm sm:h-11 sm:w-11"
+                  className="h-9 w-9 rounded-xl border border-[#E2E8F0]/80 bg-white object-cover shadow-sm sm:h-11 sm:w-11 flex-shrink-0"
                 />
                 <div className="min-w-0">
-                  <div className="font-sans text-lg sm:text-xl font-extrabold tracking-tight text-[#0A1628] leading-tight">
+                  <div className="font-sans text-base sm:text-lg md:text-xl font-extrabold tracking-tight text-[#0A1628] leading-tight truncate">
                     {APP_COPY.brand}
                   </div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#6B7B94] leading-none">
+                  <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-[0.16em] sm:tracking-[0.18em] text-[#6B7B94] leading-none truncate">
                     Everyday Fresh
                   </div>
                 </div>
@@ -697,15 +696,15 @@ export function Navbar() {
             </div>
 
             {/* Desktop Search Bar (Center Row 1) */}
-            <div className="relative hidden lg:block flex-1 max-w-[340px] xl:max-w-[480px]">
+            <div className="relative hidden lg:block flex-1 min-w-[260px] max-w-[500px] xl:max-w-[660px] 2xl:max-w-[800px]">
               <div
-                className={`flex items-center rounded-full border bg-white px-3.5 py-1.5 shadow-sm transition-all duration-300 ${
+                className={`flex items-center rounded-full border bg-white px-4 py-2 shadow-[0_1px_2px_rgba(10,22,40,0.02)] transition-all duration-300 ${
                   showSearchSuggestions
-                    ? "border-[#0A4D3C] ring-4 ring-[#0A4D3C]/5"
+                    ? "border-[#0A4D3C] ring-2 ring-[#0A4D3C]/5"
                     : "border-[#E2E8F0] hover:border-[#CBD5E1]"
                 }`}
               >
-                <Search className="mr-2 h-4 w-4 text-[#94A3B8]" />
+                <Search className="mr-2.5 h-4 w-4 text-[#94A3B8] shrink-0" />
                 <input
                   type="text"
                   value={query}
@@ -724,13 +723,13 @@ export function Navbar() {
                     }
                   }}
                   placeholder="Search milk, rice, snacks..."
-                  className="w-full bg-transparent text-xs text-[#1A2332] outline-none placeholder:text-[#94A3B8]"
+                  className="w-full bg-transparent text-xs sm:text-sm text-[#1A2332] outline-none placeholder:text-[#94A3B8]"
                 />
                 {query && (
                   <button
                     type="button"
                     onClick={() => handleSearchSubmit()}
-                    className="ml-1.5 inline-flex items-center justify-center rounded-full bg-[#0A4D3C]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0A4D3C] hover:bg-[#0A4D3C]/20"
+                    className="ml-1.5 inline-flex shrink-0 items-center justify-center rounded-full bg-[#0A4D3C]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0A4D3C] hover:bg-[#0A4D3C]/20"
                   >
                     Go
                   </button>
@@ -744,7 +743,7 @@ export function Navbar() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 8 }}
-                    className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white/98 shadow-lg backdrop-blur-md"
+                    className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_12px_30px_rgba(10,22,40,0.08)]"
                   >
                     {suggestionsDropdownInner}
                   </motion.div>
@@ -874,7 +873,7 @@ export function Navbar() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
-                      className="fixed inset-x-3 top-16 z-[70] rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_20px_50px_rgba(10,22,40,0.22)] overflow-hidden sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+0.65rem)] sm:w-88"
+                      className="fixed inset-x-2.5 top-16 z-[70] max-w-[calc(100vw-1.25rem)] mx-auto rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_20px_50px_rgba(10,22,40,0.22)] overflow-hidden sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+0.65rem)] sm:w-88"
                     >
                       {notificationDropdownContent}
                     </motion.div>
@@ -897,17 +896,17 @@ export function Navbar() {
 
           </div>
 
-          {/* Mobile Search and Location Area (Only on Mobile) */}
-          <div className="flex flex-col gap-2 lg:hidden">
-            <div className="relative">
+          {/* Mobile Search and Location Area (Only on Mobile & Tablet) */}
+          <div className="flex flex-col gap-2 lg:hidden w-full">
+            <div className="relative w-full">
               <div
-                className={`flex items-center rounded-full border bg-white px-3.5 py-2 shadow-sm transition-all duration-300 ${
+                className={`flex items-center rounded-full border bg-white px-4 py-2 sm:py-2.5 shadow-[0_1px_2px_rgba(10,22,40,0.02)] transition-all duration-300 w-full ${
                   showSearchSuggestions
-                    ? "border-[#0A4D3C] ring-4 ring-[#0A4D3C]/5"
+                    ? "border-[#0A4D3C] ring-2 ring-[#0A4D3C]/5"
                     : "border-[#E2E8F0]"
                 }`}
               >
-                <Search className="mr-2 h-4 w-4 text-[#94A3B8]" />
+                <Search className="mr-2.5 h-4 w-4 text-[#94A3B8] flex-shrink-0" />
                 <input
                   type="text"
                   value={query}
@@ -926,12 +925,12 @@ export function Navbar() {
                     }
                   }}
                   placeholder="Search milk, rice, snacks..."
-                  className="w-full bg-transparent text-xs text-[#1A2332] outline-none placeholder:text-[#94A3B8]"
+                  className="w-full min-w-0 bg-transparent text-xs sm:text-sm text-[#1A2332] outline-none placeholder:text-[#94A3B8]"
                 />
                 <button
                   type="button"
                   onClick={() => handleSearchSubmit()}
-                  className="inline-flex items-center justify-center rounded-full bg-[#0A4D3C]/10 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0A4D3C] hover:bg-[#0A4D3C]/20"
+                  className="flex-shrink-0 inline-flex items-center justify-center rounded-full bg-[#0A4D3C]/10 px-3 py-1 sm:px-3.5 sm:py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0A4D3C] hover:bg-[#0A4D3C]/20"
                 >
                   Go
                 </button>
@@ -944,7 +943,7 @@ export function Navbar() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
-                    className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-[1.8rem] border border-[#E2E8F0] bg-white/98 shadow-lg backdrop-blur-md"
+                    className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-[1.8rem] border border-[#E2E8F0] bg-white shadow-[0_12px_30px_rgba(10,22,40,0.08)]"
                   >
                     {suggestionsDropdownInner}
                   </motion.div>
@@ -1038,7 +1037,7 @@ export function Navbar() {
                       <p className="text-xs text-[#6B7B94] font-medium">{customerMobile || customerMeta || "Verified Account"}</p>
                     </div>
                     <Link
-                      to="/account"
+                      to="/account?tab=profile"
                       onClick={() => setShowMobileNav(false)}
                       className="flex items-center gap-2.5 rounded-2xl bg-[#F8FAFD] px-4 py-3 text-sm font-semibold text-[#3A4D6B] hover:bg-[#EEF2F7]"
                     >

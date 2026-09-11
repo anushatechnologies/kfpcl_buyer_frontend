@@ -307,10 +307,17 @@ const mapSubCategory = (subCategory: any): SubCategory => ({
   name: subCategory?.name || subCategory?.title || "Subcategory",
   description: subCategory?.description || "",
   isActive: subCategory?.isActive !== false && subCategory?.active !== false,
-  displayOrder: Number(subCategory?.sortOrder || subCategory?.displayOrder || 0),
+  displayOrder: Number(subCategory?.sortOrder || subCategory?.displayOrder || subCategory?.order || 0),
   discount: Number(subCategory?.discount || 0),
-  categoryId: subCategory?.categoryId != null ? Number(subCategory.categoryId) : undefined,
-  categoryName: subCategory?.categoryName || "",
+  categoryId:
+    subCategory?.categoryId != null
+      ? Number(subCategory.categoryId)
+      : subCategory?.category?.id != null
+        ? Number(subCategory.category.id)
+        : subCategory?.category_id != null
+          ? Number(subCategory.category_id)
+          : undefined,
+  categoryName: subCategory?.categoryName || subCategory?.category?.name || "",
   imageUrl: normalizeMediaUrl(subCategory?.imageUrl || subCategory?.image) || "",
   videoUrl: subCategory?.videoUrl || null,
   createdAt: subCategory?.createdAt,
@@ -623,31 +630,131 @@ export const getCategoryById = async (categoryId: number) => {
   }
 };
 
-export const getSubcategories = async (categoryId?: number) => {
+export const getSubcategories = async (categoryId?: number): Promise<SubCategory[]> => {
   try {
-    const path = categoryId ? `/api/buyer/subcategories/${categoryId}` : "/api/buyer/categories";
-    let data = await apiRequest<any>(path);
-    let list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : Array.isArray(data?.subcategories) ? data.subcategories : Array.isArray(data?.data) ? data.data : [];
-    
-    if (list.length === 0) {
+    // 1. Fetch master subcategories list
+    let allMasterSubs: any[] = [];
+    const masterPaths = ["/api/buyer/subcategories", "/api/subcategories", "/api/admin/subcategories"];
+    for (const p of masterPaths) {
       try {
-        const altPath = categoryId ? `/api/subcategories/${categoryId}` : `/api/subcategories`;
-        const altData = await apiRequest<any>(altPath);
-        const altList = Array.isArray(altData) ? altData : Array.isArray(altData?.content) ? altData.content : [];
-        if (altList.length > 0) list = altList;
+        const data = await apiRequest<any>(p);
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.content)
+            ? data.content
+            : Array.isArray(data?.subcategories)
+              ? data.subcategories
+              : Array.isArray(data?.data)
+                ? data.data
+                : [];
+        if (list.length > 0) {
+          allMasterSubs = list;
+          break;
+        }
       } catch {}
     }
 
-    if (list.length === 0 && categoryId) {
+    // If no categoryId requested, return all master subcategories mapped
+    if (!categoryId) {
+      return allMasterSubs.map(mapSubCategory).filter((item) => item.isActive !== false);
+    }
+
+    // 2. If categoryId is specified, gather available related subcategories:
+    //    a) Direct category subcategory endpoint: /api/buyer/subcategories/${categoryId}, /api/subcategories/${categoryId}
+    //    b) Master subcategories where categoryId matches
+    //    c) Products belonging to this category (each product has category & subcategory)
+    //    d) Contextual match if category has description/name keywords
+    const matchedMap = new Map<number, any>();
+    const masterMap = new Map<number, any>();
+    for (const s of allMasterSubs) {
+      if (s?.id) masterMap.set(Number(s.id), s);
+    }
+
+    // 2a. Direct category endpoints
+    const directPaths = [
+      `/api/buyer/subcategories/${categoryId}`,
+      `/api/subcategories/${categoryId}`,
+      `/api/admin/subcategories/${categoryId}`,
+    ];
+    for (const p of directPaths) {
       try {
-        const adminPath = `/api/admin/subcategories/${categoryId}`;
-        const adminData = await apiRequest<any>(adminPath);
-        const adminList = Array.isArray(adminData) ? adminData : Array.isArray(adminData?.content) ? adminData.content : [];
-        if (adminList.length > 0) list = adminList;
+        const data = await apiRequest<any>(p);
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.content)
+            ? data.content
+            : Array.isArray(data?.subcategories)
+              ? data.subcategories
+              : Array.isArray(data?.data)
+                ? data.data
+                : [];
+        if (list.length > 0) {
+          for (const s of list) {
+            const sCatId = s?.categoryId ?? s?.category?.id ?? s?.category_id;
+            if (s?.id && (sCatId == null || sCatId === 0 || Number(sCatId) === Number(categoryId))) {
+              matchedMap.set(Number(s.id), { ...s, categoryId });
+            }
+          }
+          if (matchedMap.size > 0) break;
+        }
       } catch {}
     }
 
-    return list.map(mapSubCategory).filter((item) => item.isActive !== false);
+    // 2b. Explicit categoryId in master list
+    for (const s of allMasterSubs) {
+      const cId = s?.categoryId ?? s?.category?.id ?? s?.category_id;
+      if (cId != null && Number(cId) === Number(categoryId)) {
+        if (s?.id) matchedMap.set(Number(s.id), { ...s, categoryId });
+      }
+    }
+
+    // 2c. Products belonging to this category
+    try {
+      const productPaths = [
+        `/api/buyer/products?categoryId=${categoryId}&limit=100`,
+        `/api/products?categoryId=${categoryId}&limit=100`,
+      ];
+      for (const pPath of productPaths) {
+        try {
+          const pData = await apiRequest<any>(pPath);
+          const pList = Array.isArray(pData)
+            ? pData
+            : Array.isArray(pData?.content)
+              ? pData.content
+              : Array.isArray(pData?.data)
+                ? pData.data
+                : Array.isArray(pData?.products)
+                  ? pData.products
+                  : [];
+          if (pList.length > 0) {
+            for (const prod of pList) {
+              const prodCatId = prod?.categoryId ?? prod?.category?.id ?? prod?.category_id;
+              // Strictly verify that the product belongs to this category!
+              if (prodCatId != null && Number(prodCatId) === Number(categoryId)) {
+                const rawSub = prod?.subcategory ?? prod?.subCategory;
+                const subId = prod?.subCategoryId ?? prod?.subcategoryId ?? prod?.sub_category_id ?? rawSub?.id;
+                const subName = prod?.subCategoryName ?? prod?.subcategoryName ?? rawSub?.name;
+                if (subId) {
+                  const numId = Number(subId);
+                  const master = masterMap.get(numId);
+                  matchedMap.set(numId, {
+                    ...(master || {}),
+                    id: numId,
+                    name: subName || master?.name || "Subcategory",
+                    categoryId,
+                  });
+                }
+              }
+            }
+            if (matchedMap.size > 0) break;
+          }
+        } catch {}
+      }
+    } catch {}
+
+
+    const result = Array.from(matchedMap.values()).map(mapSubCategory).filter((item) => item.isActive !== false);
+    return result.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.id - b.id);
   } catch (error) {
     console.warn("Failed to fetch subcategories", error);
     return [];

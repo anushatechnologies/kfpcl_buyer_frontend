@@ -1,3 +1,6 @@
+# ── Apache Configuration for KFPCL Vite SPA on GoDaddy ──
+
+# 1. SPA URL Rewriting (React Router support)
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -6,4 +9,36 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteCond %{REQUEST_FILENAME} !-l
   RewriteRule . /index.html [L]
+</IfModule>
+
+# 2. Browser & CDN Cache Control
+<IfModule mod_headers.c>
+  # NEVER cache index.html: Ensures all devices always receive the latest bundle versions instantly
+  <Files "index.html">
+    Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "Wed, 11 Jan 1984 05:00:00 GMT"
+  </Files>
+
+  # Cache static hashed JavaScript and CSS bundles (immutable: 1 year)
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Cache static media assets (images, fonts, icons: 30 days)
+  <FilesMatch "\.(jpg|jpeg|png|gif|svg|ico|webp|woff|woff2|ttf|eot)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+
+  # Security headers
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# 3. Gzip Compression for Fast Mobile & Desktop Loading
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+  AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+  AddOutputFilterByType DEFLATE application/xml application/xhtml+xml application/rss+xml
+  AddOutputFilterByType DEFLATE image/svg+xml
 </IfModule>

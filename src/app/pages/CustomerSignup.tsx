@@ -24,6 +24,7 @@ import { authApi } from "@/api/auth.api";
 import { sendRealSmsOtp, verifyOtpForRegistration, submitBuyerRegistration } from "@/api/auth-service";
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "@/store/authStore";
+import { getCitiesForState, fetchCitiesForState } from "@/data/indianStatesCities";
 
 const BUSINESS_TYPES = [
   { value: "WHOLESALER", label: "Wholesaler" },
@@ -113,6 +114,44 @@ export function CustomerSignup() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const panFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+
+  useEffect(() => {
+    if (!state) {
+      setAvailableCities([]);
+      setCity("");
+      return;
+    }
+
+    // Always clear city field when state changes
+    setCity("");
+    if (fieldErrors.city) {
+      setFieldErrors((p) => ({ ...p, city: "" }));
+    }
+
+    // Immediately provide verified genuine cities
+    const instantCities = getCitiesForState(state);
+    setAvailableCities(instantCities);
+
+    // Fetch and enrich dynamically from real API
+    let isCurrent = true;
+    setIsLoadingCities(true);
+    fetchCitiesForState(state)
+      .then((cities) => {
+        if (isCurrent && cities.length > 0) {
+          setAvailableCities(cities);
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingCities(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [state]);
 
   // Phone OTP Verification State (Real SMS OTP with invisible background check)
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
@@ -727,19 +766,32 @@ export function CustomerSignup() {
                 </label>
                 <div className="relative">
                   <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                  <input
+                  <select
                     id="city"
-                    type="text"
                     value={city}
+                    disabled={!state}
                     onChange={(e) => {
                       setCity(e.target.value);
                       if (fieldErrors.city) {
                         setFieldErrors((p) => ({ ...p, city: "" }));
                       }
                     }}
-                    placeholder="Enter city / district"
-                    className={`${inputClass(!!fieldErrors.city)} pl-10`}
-                  />
+                    className={`${inputClass(!!fieldErrors.city)} pl-10 pr-9 appearance-none cursor-pointer bg-white disabled:bg-gray-100 disabled:cursor-not-allowed`}
+                  >
+                    <option value="" disabled>
+                      {!state
+                        ? "Select State first"
+                        : isLoadingCities
+                        ? "Loading cities..."
+                        : "Select City"}
+                    </option>
+                    {availableCities.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                 </div>
                 {fieldErrors.city && (
                   <p className={errorClass}>

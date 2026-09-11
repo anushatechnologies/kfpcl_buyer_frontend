@@ -113,6 +113,32 @@ async function fetchRfqReplyNotifications(): Promise<NotificationItem[]> {
             notesText ? `Note: "${notesText}"` : '',
           ].filter(Boolean);
 
+          const replyTimestamp =
+            q.quotedAt ||
+            q.quoted_at ||
+            q.respondedAt ||
+            q.responded_at ||
+            q.repliedAt ||
+            q.replied_at ||
+            q.createdAt ||
+            q.created_at ||
+            q.updatedAt ||
+            q.updated_at ||
+            q.replyDate ||
+            q.reply_date ||
+            q.date ||
+            q.timestamp ||
+            rfq.respondedAt ||
+            rfq.responded_at ||
+            rfq.quotedAt ||
+            rfq.quoted_at ||
+            rfq.lastRepliedAt ||
+            rfq.last_replied_at ||
+            rfq.updatedAt ||
+            rfq.updated_at ||
+            rfq.createdAt ||
+            new Date().toISOString();
+
           replyNotifs.push({
             id: notifId,
             type: 'RFQ_REPLY',
@@ -120,11 +146,23 @@ async function fetchRfqReplyNotifications(): Promise<NotificationItem[]> {
             body: bodyParts.join(' • '),
             read: readIds.includes(notifId),
             targetPath: '/account?tab=rfqs',
-            createdAt: q.createdAt || rfq.updatedAt || rfq.createdAt || new Date().toISOString(),
+            createdAt: replyTimestamp,
           });
         }
       } else if (rfq.status && ['quoted', 'responded', 'accepted', 'in_negotiation'].includes(String(rfq.status).toLowerCase())) {
         const notifId = `rfq-status-${rfqId}-${rfq.status}`;
+        const statusTimestamp =
+          rfq.respondedAt ||
+          rfq.responded_at ||
+          rfq.quotedAt ||
+          rfq.quoted_at ||
+          rfq.lastRepliedAt ||
+          rfq.last_replied_at ||
+          rfq.updatedAt ||
+          rfq.updated_at ||
+          rfq.createdAt ||
+          new Date().toISOString();
+
         replyNotifs.push({
           id: notifId,
           type: 'RFQ_REPLY',
@@ -132,7 +170,7 @@ async function fetchRfqReplyNotifications(): Promise<NotificationItem[]> {
           body: `Supplier has replied to your RFQ with status "${rfq.status}". Click to review quotation details.`,
           read: readIds.includes(notifId),
           targetPath: '/account?tab=rfqs',
-          createdAt: rfq.updatedAt || rfq.createdAt || new Date().toISOString(),
+          createdAt: statusTimestamp,
         });
       }
     }

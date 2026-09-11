@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:zip": "npm run build && powershell -Command \"Compress-Archive -Path dist/* -DestinationPath dist.zip -Force\"",
     "preview": "vite preview"
   },
   "dependencies": {

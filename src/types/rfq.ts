@@ -66,6 +66,7 @@ export interface RFQ {
   currency?: string;
   expiresAt?: string;
   buyerMessage?: string;
+  subject?: string;
   response?: Quote | null;
   contact?: {
     name?: string;
@@ -77,7 +78,7 @@ export interface RFQ {
 
 export interface CreateRFQPayload {
   title: string;
-  description: string;
+  description?: string;
   targetPrice?: number;
   quantity: number | string;
   unit: string;

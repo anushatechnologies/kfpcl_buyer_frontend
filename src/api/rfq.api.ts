@@ -239,23 +239,25 @@ function mapRFQDto(dto: any): RFQ {
     requiredByDate: rfqObj.requiredByDate || rfqObj.deliveryDate || rfqObj.deadline,
     status: (rfqObj.status ? String(rfqObj.status).toLowerCase() : (mappedQuotes.length > 0 ? 'responded' : 'submitted')) as any,
     quotes: mappedQuotes,
-    createdAt: rfqObj.createdAt || new Date().toISOString(),
+    createdAt: rfqObj.createdAt || rfqObj.created_at || rfqObj.createdDate || dto.createdAt || new Date().toISOString(),
     amount: finalAmount,
     quotedPrice: finalAmount,
     leadTime: finalLeadTime,
     deliveryDays: rfqObj.deliveryDays ?? rfqObj.delivery_days,
     // Backward compatibility aliases
     buyerId: rfqObj.buyerId ? String(rfqObj.buyerId) : undefined,
-    buyerName: rfqObj.buyerName || 'Verified Buyer',
+    buyerName: rfqObj.buyerName || rfqObj.buyer_name || rfqObj.name || dto.buyerName || dto.name || rawContact?.name || 'Verified Buyer',
+    buyerPhone: rfqObj.buyerPhone || rfqObj.buyer_phone || rfqObj.phone || rfqObj.phoneNumber || rfqObj.buyerMobile || rfqObj.mobile || dto.buyerPhone || dto.phone || rawContact?.phone || undefined,
     buyerCompany: rfqObj.buyerCompany || rfqObj.company || 'Global Import Corp',
-    productName: rfqObj.productName || product.name || rfqObj.title || '',
+    productName: rfqObj.productName || rfqObj.product_name || product.name || rfqObj.title || dto.productName || '',
     productCategory: rfqObj.categoryId || rfqObj.productCategory || 'General',
     deliveryDate: rfqObj.requiredByDate || rfqObj.deliveryDate || rfqObj.deadline,
-    deliveryLocation: rfqObj.deliveryLocation || 'India',
+    deliveryLocation: rfqObj.deliveryLocation || rfqObj.delivery_location || dto.deliveryLocation || 'India',
     specifications: rfqObj.buyerMessage || rfqObj.description || rfqObj.specifications || '',
     currency: rfqObj.currency || 'INR',
     expiresAt: rfqObj.deadline || rfqObj.expiresAt || new Date(Date.now() + 30 * 86400000).toISOString(),
     buyerMessage: rfqObj.buyerMessage || undefined,
+    subject: rfqObj.subject || dto.subject || rfqObj.title || dto.title || undefined,
     response,
     contact: rawContact
       ? {
@@ -324,20 +326,25 @@ export const rfqApi = {
     const buyerPhone = payload.buyerPhone || session?.phoneNumber || (typeof window !== 'undefined' ? localStorage.getItem('kfpcl_user_phone') : '') || '';
     const buyerName = payload.buyerName || session?.name || '';
     const subject = payload.subject || payload.title || 'Requirement for wholesale quotation';
-    const message = payload.buyerMessage || payload.description || payload.specifications || subject;
+    // buyerMessage = ONLY the user's typed message. Do NOT concatenate name/phone/subject.
+    const buyerMessage = payload.buyerMessage || payload.description || payload.specifications || '';
     const productName = payload.productName || payload.title || '';
 
-    const rfqBody = {
-      // productId is optional if selected from dropdown
+    // quantity: send exactly as provided by the form (e.g. "500 KG" or "10").
+    // When payload.quantity is a number, append unit. Otherwise use the string as-is.
+    const quantity = typeof payload.quantity === 'number'
+      ? `${payload.quantity} ${payload.unit || 'KG'}`.trim()
+      : String(payload.quantity || '100 KG').trim();
+
+    const rfqBody: Record<string, any> = {
+      // productId is optional — only include if provided
       ...(payload.productId ? { productId: Number(payload.productId) } : {}),
-      // Pass productName directly so custom inquiries or commodities display with exact title in Buyer and Admin panels
+      // productName as its own separate field
       ...(productName ? { productName } : {}),
-      quantity: typeof payload.quantity === 'number'
-        ? `${payload.quantity} ${payload.unit || 'KG'}`
-        : payload.quantity || '100 KG',
+      quantity,                                   // ONLY number + unit
       deliveryLocation: payload.deliveryLocation || 'India',
-      subject,
-      buyerMessage: message,
+      subject,                                    // subject as its own field
+      buyerMessage: buyerMessage || undefined,    // ONLY the typed message
       buyerName: buyerName || 'Buyer',
       buyerPhone: buyerPhone || '',
       email: buyerEmail,
@@ -367,14 +374,36 @@ export const rfqApi = {
 
     try {
       const response = await apiClient.post<any>('/api/buyer/rfqs', rfqBody, { headers });
-      return mapRFQDto(response.data?.data || response.data);
+      const rawData = response.data?.data || response.data;
+      const mapped = mapRFQDto(rawData);
+      return {
+        ...mapped,
+        productName: mapped.productName || payload.productName || payload.title,
+        buyerName: mapped.buyerName && mapped.buyerName !== 'Verified Buyer' ? mapped.buyerName : (payload.buyerName || mapped.buyerName),
+        buyerPhone: mapped.buyerPhone || payload.buyerPhone,
+        subject: mapped.subject || payload.subject,
+        deliveryLocation: mapped.deliveryLocation && mapped.deliveryLocation !== 'India' ? mapped.deliveryLocation : (payload.deliveryLocation || mapped.deliveryLocation),
+        quantity: mapped.quantity || (typeof payload.quantity === 'number' ? payload.quantity : Number(String(payload.quantity).match(/\d+(\.\d+)?/)?.[0] || 1)),
+        unit: mapped.unit || payload.unit || 'kg',
+      };
     } catch (err: any) {
       const msg = String(err?.response?.data?.message || err?.response?.data?.error || err?.message || '');
       // If productId triggered an FK constraint failure (e.g. ID not found in RDS products table), retry safely without productId
       if ('productId' in rfqBody && (msg.includes('foreign key constraint fails') || msg.includes('FOREIGN KEY') || msg.includes('child row'))) {
         const { productId: _unused, ...safeBody } = rfqBody as any;
         const fallbackResponse = await apiClient.post<any>('/api/buyer/rfqs', safeBody, { headers });
-        return mapRFQDto(fallbackResponse.data?.data || fallbackResponse.data);
+        const rawData = fallbackResponse.data?.data || fallbackResponse.data;
+        const mapped = mapRFQDto(rawData);
+        return {
+          ...mapped,
+          productName: mapped.productName || payload.productName || payload.title,
+          buyerName: mapped.buyerName && mapped.buyerName !== 'Verified Buyer' ? mapped.buyerName : (payload.buyerName || mapped.buyerName),
+          buyerPhone: mapped.buyerPhone || payload.buyerPhone,
+          subject: mapped.subject || payload.subject,
+          deliveryLocation: mapped.deliveryLocation && mapped.deliveryLocation !== 'India' ? mapped.deliveryLocation : (payload.deliveryLocation || mapped.deliveryLocation),
+          quantity: mapped.quantity || (typeof payload.quantity === 'number' ? payload.quantity : Number(String(payload.quantity).match(/\d+(\.\d+)?/)?.[0] || 1)),
+          unit: mapped.unit || payload.unit || 'kg',
+        };
       }
       throw err;
     }

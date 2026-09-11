@@ -26,6 +26,7 @@ import {
   Send,
   User,
   X,
+  Clock,
 } from "lucide-react";
 import { ProductCard } from "../components/ProductCard";
 import { APP_COPY } from "../lib/config";
@@ -41,6 +42,8 @@ import { rfqApi } from "../../api/rfq.api";
 import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
 import { readStoredSession } from "../lib/session";
+import { formatDate } from "../../lib/utils";
+import type { RFQ } from "../../types/rfq";
 import type { FreeItemOffer, Product as ProductType, Variant } from "../types/storefront";
 
 export function Product() {
@@ -72,9 +75,19 @@ export function Product() {
   const [rfqNotes, setRfqNotes] = useState("");
   const [rfqFile, setRfqFile] = useState<File | null>(null);
   const [isRfqSubmitting, setIsRfqSubmitting] = useState(false);
+  const [submittedRfq, setSubmittedRfq] = useState<RFQ | null>(null);
   // Generate a stable enquiry ID per modal open
   const [enquiryId] = useState(() => `ENQ-${Date.now().toString(36).toUpperCase()}`);
   const enquiryDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  const handleResetRfqForm = () => {
+    setSubmittedRfq(null);
+    setRfqQuantity("");
+    setRfqDeliveryLocation("");
+    setRfqSubject("");
+    setRfqNotes("");
+    setRfqFile(null);
+  };
 
   useEffect(() => {
     hydrateFromStorage();
@@ -377,28 +390,23 @@ export function Product() {
       return;
     }
 
+    // Extract only the number+unit — never include product name in quantity
     const quantityMatch = rawQuantity.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+    const quantityNum = quantityMatch?.[1] || rawQuantity;
     const unit = quantityMatch?.[2]?.trim() || selectedVariant?.name || "KG";
-    const message = [
-      `Buyer Name: ${rfqBuyerName.trim()}`,
-      `Buyer Mobile: +91 ${cleanPhone}`,
-      `Subject: ${rfqSubject.trim()}`,
-      rfqNotes.trim(),
-      rfqFile ? `Attachment selected: ${rfqFile.name}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    // Send as "<number> <unit>" e.g. "500 KG"
+    const cleanQuantity = unit ? `${quantityNum} ${unit}` : quantityNum;
 
     setIsRfqSubmitting(true);
     try {
-      await rfqApi.createRFQ({
+      const created = await rfqApi.createRFQ({
         productId: Number(product.id),
-        productName: product.name,
+        productName: product.name,          // product name as its own field
         title: product.name,
         subject: rfqSubject.trim() || `Price Enquiry for ${product.name}`,
-        description: message,
-        buyerMessage: message,
-        quantity: rawQuantity,
+        description: rfqNotes.trim(),
+        buyerMessage: rfqNotes.trim(),      // ONLY the user's typed message
+        quantity: cleanQuantity,            // ONLY number + unit
         unit,
         deliveryLocation: rfqDeliveryLocation.trim(),
         buyerName: rfqBuyerName.trim(),
@@ -406,12 +414,7 @@ export function Product() {
         email: session?.email || undefined,
       });
 
-      setIsRfqModalOpen(false);
-      setRfqQuantity("");
-      setRfqDeliveryLocation("");
-      setRfqSubject("");
-      setRfqNotes("");
-      setRfqFile(null);
+      setSubmittedRfq(created);
       toast.success("RFQ submitted successfully. It is now available in the admin RFQ panel.");
     } catch (error: any) {
       const serverMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message;
@@ -459,48 +462,48 @@ export function Product() {
       </Link>
 
       {/* Unified Canvas Grid Layout (no separate border boxes for left/right halves) */}
-      <div className="mt-10 grid gap-12 md:grid-cols-2 items-start relative">
+      <div className="mt-6 sm:mt-10 grid gap-6 sm:gap-10 md:grid-cols-2 items-start relative">
         {/* Animated background blobs */}
         <div className="absolute top-20 -left-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(10,77,60,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDuration: '4s' }} />
         <div className="absolute bottom-20 -right-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(212,168,83,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDelay: "1.5s", animationDuration: '4s' }} />
 
         {/* Left Side: Product Image & Gallery Wrapper (Stretches to full height of grid for sticky tracking) */}
         <div className="relative self-stretch">
-          <div className="space-y-6 md:sticky md:top-24">
-            {/* Vertical Preview Gallery Integration */}
-          <div className="flex gap-4 items-start">
-            {/* Vertical Thumbnail Strip on Left */}
-            {gallery.length > 1 && (
-              <div className="flex flex-col gap-2 shrink-0">
-                {gallery.slice(0, 5).map((image, index) => (
-                  <button
-                    type="button"
-                    key={`${image}-${index}`}
-                    onClick={() => setSelectedImageIndex(index)}
-                    onMouseEnter={() => setSelectedImageIndex(index)}
-                    className={`overflow-hidden rounded-xl border-2 h-14 w-14 bg-white transition-all ${
-                      selectedImageIndex === index ? "border-[#0A4D3C] scale-105 shadow-sm" : "border-transparent hover:border-gray-250"
-                    }`}
-                  >
-                    <div className="flex h-full w-full items-center justify-center bg-gray-50 p-1">
-                      <img
-                        src={image}
-                        alt=""
-                        className="max-h-full max-w-full object-contain mix-blend-multiply"
-                      />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="space-y-5 sm:space-y-6 md:sticky md:top-24">
+            {/* Gallery Integration: horizontal thumbnails on mobile, vertical strip on desktop */}
+            <div className="flex flex-col-reverse md:flex-row gap-3 sm:gap-4 items-start">
+              {/* Thumbnail Strip */}
+              {gallery.length > 1 && (
+                <div className="flex flex-row md:flex-col gap-2 overflow-x-auto max-w-full pb-1 md:pb-0 scrollbar-hide shrink-0">
+                  {gallery.slice(0, 5).map((image, index) => (
+                    <button
+                      type="button"
+                      key={`${image}-${index}`}
+                      onClick={() => setSelectedImageIndex(index)}
+                      onMouseEnter={() => setSelectedImageIndex(index)}
+                      className={`overflow-hidden rounded-xl border-2 h-12 w-12 sm:h-14 sm:w-14 bg-white transition-all flex-shrink-0 ${
+                        selectedImageIndex === index ? "border-[#0A4D3C] scale-105 shadow-sm" : "border-transparent hover:border-gray-250"
+                      }`}
+                    >
+                      <div className="flex h-full w-full items-center justify-center bg-gray-50 p-1">
+                        <img
+                          src={image}
+                          alt=""
+                          className="max-h-full max-w-full object-contain mix-blend-multiply"
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-            {/* Main Zoom Frame on Right */}
-            <div
-              className="relative overflow-hidden rounded-3xl bg-[#FAF8F5]/80 flex items-center justify-center border border-gray-150/40 cursor-zoom-in group/zoom aspect-square flex-1 shadow-[0_8px_30px_rgba(0,0,0,0.02)]"
-              onMouseMove={handleMouseMove}
-              onMouseEnter={() => setIsZooming(true)}
-              onMouseLeave={() => setIsZooming(false)}
-            >
+              {/* Main Zoom Frame on Right */}
+              <div
+                className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#FAF8F5]/80 flex items-center justify-center border border-gray-150/40 cursor-zoom-in group/zoom aspect-square w-full flex-1 shadow-[0_8px_30px_rgba(0,0,0,0.02)]"
+                onMouseMove={handleMouseMove}
+                onMouseEnter={() => setIsZooming(true)}
+                onMouseLeave={() => setIsZooming(false)}
+              >
               <div className="flex h-full w-full items-center justify-center p-8">
                 <img
                   src={activeImage}
@@ -524,22 +527,22 @@ export function Product() {
           </div>
 
           {/* Premium attributes badges aligned cleanly in horizontal strip without boxed lines */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-between gap-2 sm:gap-3 pt-4 border-t border-gray-100">
             <div className="flex items-center gap-2">
-              <span className="h-8 w-8 rounded-full bg-[#E8F5E9] flex items-center justify-center text-xs">🌿</span>
-              <span className="text-[11px] font-black text-gray-700 uppercase tracking-wider">100% Organic</span>
+              <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#E8F5E9] flex items-center justify-center text-xs flex-shrink-0">🌿</span>
+              <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">100% Organic</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="h-8 w-8 rounded-full bg-[#FFEBEE] flex items-center justify-center text-xs">🚫</span>
-              <span className="text-[11px] font-black text-gray-700 uppercase tracking-wider">No Toxins</span>
+              <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#FFEBEE] flex items-center justify-center text-xs flex-shrink-0">🚫</span>
+              <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">No Toxins</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="h-8 w-8 rounded-full bg-[#FFF3E0] flex items-center justify-center text-xs">🚜</span>
-              <span className="text-[11px] font-black text-gray-700 uppercase tracking-wider">Farm Direct</span>
+              <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#FFF3E0] flex items-center justify-center text-xs flex-shrink-0">🚜</span>
+              <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">Farm Direct</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="h-8 w-8 rounded-full bg-[#E0F2F1] flex items-center justify-center text-xs">📦</span>
-              <span className="text-[11px] font-black text-gray-700 uppercase tracking-wider">Eco Friendly</span>
+              <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#E0F2F1] flex items-center justify-center text-xs flex-shrink-0">📦</span>
+              <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">Eco Friendly</span>
             </div>
           </div>
         </div>
@@ -687,7 +690,7 @@ export function Product() {
                     id="submit-rfq-button"
                   >
                     <FileText className="h-4 w-4 text-[#D4A853]" />
-                    RFQ
+                    {submittedRfq ? "View RFQ" : "RFQ"}
                   </button>
                   <button
                     type="button"
@@ -716,6 +719,76 @@ export function Product() {
                 </div>
               )}
             </div>
+
+            {/* Submitted RFQ Card on Product Page */}
+            {submittedRfq && (
+              <div className="mt-4 rounded-2xl border border-[#0A4D3C]/20 bg-[#F0FBF7] p-4 sm:p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-[#0A4D3C]/10">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-[#0A4D3C]" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-[#0A4D3C]">
+                      Submitted RFQ Details
+                    </h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                      <Clock className="h-3 w-3" />
+                      {(submittedRfq.status || "SUBMITTED").toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200/80 overflow-hidden divide-y divide-gray-100 text-xs">
+                  <div className="grid grid-cols-3 gap-2 px-3.5 py-2.5">
+                    <span className="font-bold text-[#7C9A90]">Status</span>
+                    <span className="col-span-2 font-semibold text-gray-900 capitalize">{submittedRfq.status || "Submitted"}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3.5 py-2.5 bg-gray-50/50">
+                    <span className="font-bold text-[#7C9A90]">Created Date</span>
+                    <span className="col-span-2 font-semibold text-gray-900">{formatDate(submittedRfq.createdAt || new Date().toISOString())}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3.5 py-2.5">
+                    <span className="font-bold text-[#7C9A90]">Product</span>
+                    <span className="col-span-2 font-semibold text-gray-900">{submittedRfq.productName || submittedRfq.title || product.name}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3.5 py-2.5 bg-gray-50/50">
+                    <span className="font-bold text-[#7C9A90]">Buyer Name / Mobile</span>
+                    <span className="col-span-2 font-semibold text-gray-900">{submittedRfq.buyerName || "—"} {submittedRfq.buyerPhone ? `/ ${submittedRfq.buyerPhone}` : ""}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3.5 py-2.5">
+                    <span className="font-bold text-[#7C9A90]">Subject</span>
+                    <span className="col-span-2 font-semibold text-gray-900">{submittedRfq.subject || submittedRfq.title || "—"}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3.5 py-2.5 bg-gray-50/50">
+                    <span className="font-bold text-[#7C9A90]">Quantity</span>
+                    <span className="col-span-2 font-semibold text-gray-900">{submittedRfq.quantity} {submittedRfq.unit || ""}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3.5 py-2.5">
+                    <span className="font-bold text-[#7C9A90]">Delivery Location</span>
+                    <span className="col-span-2 font-semibold text-gray-900">{submittedRfq.deliveryLocation || "—"}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleResetRfqForm();
+                      setIsRfqModalOpen(true);
+                    }}
+                    className="text-[11px] font-bold text-[#0A4D3C] hover:underline"
+                  >
+                    + Submit another enquiry
+                  </button>
+                  <Link
+                    to="/rfqs"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0A4D3C] hover:text-[#D4A853] transition-colors"
+                  >
+                    View in My RFQs →
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Gamified offer progress */}
@@ -1062,10 +1135,16 @@ export function Product() {
                   <div className="flex-shrink-0 bg-[#0A4D3C] px-6 py-4 sm:py-5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#D4A853]/20">
-                        <FileText className="h-5 w-5 text-[#D4A853]" />
+                        {submittedRfq ? (
+                          <CheckCircle2 className="h-5 w-5 text-[#D4A853]" />
+                        ) : (
+                          <FileText className="h-5 w-5 text-[#D4A853]" />
+                        )}
                       </div>
                       <div>
-                        <h3 className="font-black text-base text-white tracking-wide uppercase">Enquiry to Supplier</h3>
+                        <h3 className="font-black text-base text-white tracking-wide uppercase">
+                          {submittedRfq ? "Submitted RFQ" : "Enquiry to Supplier"}
+                        </h3>
                         <p className="text-[11px] text-[#7EC8B0] font-semibold mt-0.5">{product?.name || "Product"}</p>
                       </div>
                     </div>
@@ -1078,186 +1157,293 @@ export function Product() {
                     </button>
                   </div>
 
-                  {/* Meta strip (fixed under header) */}
-                  <div className="flex-shrink-0 bg-[#F0FBF7] border-b border-[#D4A853]/15 px-6 py-3 space-y-2">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <span className="text-[10px] uppercase tracking-widest font-black text-[#7C9A90]">Enquiry ID</span>
-                        <p className="text-xs font-black text-[#0A4D3C] mt-0.5">{enquiryId}</p>
+                  {submittedRfq ? (
+                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 flex items-center gap-3">
+                          <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-emerald-900">RFQ Submitted Successfully</p>
+                            <p className="text-[11px] text-emerald-700">Your quotation request has been recorded and is now available in your RFQ list.</p>
+                          </div>
+                        </div>
+
+                        {/* Submitted RFQ Card */}
+                        <div className="rounded-2xl border border-[#E2E8F0] bg-white overflow-hidden shadow-sm">
+                          <div className="bg-[#F0FBF7] border-b border-[#D4A853]/20 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-[#0A4D3C]">
+                              Submitted RFQ Details
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                              <Clock className="h-3 w-3" />
+                              {(submittedRfq.status || "SUBMITTED").toUpperCase()}
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-[#F0F4F2] text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 px-4 py-3 bg-white">
+                              <span className="font-bold uppercase tracking-wider text-[#7C9A90]">Status</span>
+                              <span className="sm:col-span-2 font-semibold text-[#0A1628] capitalize">
+                                {submittedRfq.status || "Submitted"}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 px-4 py-3 bg-[#FBFDFB]">
+                              <span className="font-bold uppercase tracking-wider text-[#7C9A90]">Created Date</span>
+                              <span className="sm:col-span-2 font-semibold text-[#0A1628]">
+                                {formatDate(submittedRfq.createdAt || new Date().toISOString())}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 px-4 py-3 bg-white">
+                              <span className="font-bold uppercase tracking-wider text-[#7C9A90]">Product</span>
+                              <span className="sm:col-span-2 font-semibold text-[#0A1628]">
+                                {submittedRfq.productName || submittedRfq.title || product?.name || "—"}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 px-4 py-3 bg-[#FBFDFB]">
+                              <span className="font-bold uppercase tracking-wider text-[#7C9A90]">Buyer Name / Mobile</span>
+                              <span className="sm:col-span-2 font-semibold text-[#0A1628]">
+                                {submittedRfq.buyerName || "—"} {submittedRfq.buyerPhone ? `/ ${submittedRfq.buyerPhone}` : ""}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 px-4 py-3 bg-white">
+                              <span className="font-bold uppercase tracking-wider text-[#7C9A90]">Subject</span>
+                              <span className="sm:col-span-2 font-semibold text-[#0A1628]">
+                                {submittedRfq.subject || submittedRfq.title || "—"}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 px-4 py-3 bg-[#FBFDFB]">
+                              <span className="font-bold uppercase tracking-wider text-[#7C9A90]">Quantity</span>
+                              <span className="sm:col-span-2 font-semibold text-[#0A1628]">
+                                {submittedRfq.quantity} {submittedRfq.unit || ""}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 px-4 py-3 bg-white">
+                              <span className="font-bold uppercase tracking-wider text-[#7C9A90]">Delivery Location</span>
+                              <span className="sm:col-span-2 font-semibold text-[#0A1628]">
+                                {submittedRfq.deliveryLocation || "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] uppercase tracking-widest font-black text-[#7C9A90]">Date</span>
-                        <p className="text-xs font-black text-[#0A4D3C] mt-0.5">{enquiryDate}</p>
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] uppercase tracking-widest font-black text-[#7C9A90]">Product</span>
-                        <p className="text-xs font-black text-[#0A4D3C] mt-0.5 truncate">{product?.name || "—"}</p>
+
+                      {/* Actions Footer */}
+                      <div className="flex-shrink-0 flex items-center justify-between gap-3 px-6 py-3.5 bg-gray-50 border-t border-gray-100">
+                        <button
+                          type="button"
+                          onClick={handleResetRfqForm}
+                          className="rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-bold text-[#0A4D3C] hover:bg-gray-100 transition-colors"
+                        >
+                          Submit Another Enquiry
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to="/rfqs"
+                            onClick={() => setIsRfqModalOpen(false)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-[#0A4D3C]/30 bg-[#F0FBF7] px-4 py-2.5 text-xs font-bold text-[#0A4D3C] hover:bg-[#0A4D3C]/10 transition-colors"
+                          >
+                            View in My RFQs →
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setIsRfqModalOpen(false)}
+                            className="rounded-xl bg-[#0A4D3C] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0E5E4A] transition-colors shadow-md"
+                          >
+                            Close
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    {(rfqBuyerName || rfqBuyerPhone) && (
-                      <div className="pt-2 border-t border-[#0A4D3C]/10 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-[#0A4D3C]">
-                        <div className="inline-flex items-center gap-1.5 font-bold">
-                          <User className="h-3 w-3 text-[#D4A853]" />
-                          <span className="text-[#7C9A90] font-normal">Buyer:</span> {rfqBuyerName || "—"}
+                  ) : (
+                    <>
+                      {/* Meta strip (fixed under header) */}
+                      <div className="flex-shrink-0 bg-[#F0FBF7] border-b border-[#D4A853]/15 px-6 py-3 space-y-2">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <span className="text-[10px] uppercase tracking-widest font-black text-[#7C9A90]">Enquiry ID</span>
+                            <p className="text-xs font-black text-[#0A4D3C] mt-0.5">{enquiryId}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase tracking-widest font-black text-[#7C9A90]">Date</span>
+                            <p className="text-xs font-black text-[#0A4D3C] mt-0.5">{enquiryDate}</p>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] uppercase tracking-widest font-black text-[#7C9A90]">Product</span>
+                            <p className="text-xs font-black text-[#0A4D3C] mt-0.5 truncate">{product?.name || "—"}</p>
+                          </div>
                         </div>
-                        {rfqBuyerPhone && (
-                          <div className="inline-flex items-center gap-1.5 font-bold">
-                            <Phone className="h-3 w-3 text-[#D4A853]" />
-                            <span className="text-[#7C9A90] font-normal">Mobile:</span> +91 {rfqBuyerPhone.replace(/\D/g, "")}
+
+                        {(rfqBuyerName || rfqBuyerPhone) && (
+                          <div className="pt-2 border-t border-[#0A4D3C]/10 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-[#0A4D3C]">
+                            <div className="inline-flex items-center gap-1.5 font-bold">
+                              <User className="h-3 w-3 text-[#D4A853]" />
+                              <span className="text-[#7C9A90] font-normal">Buyer:</span> {rfqBuyerName || "—"}
+                            </div>
+                            {rfqBuyerPhone && (
+                              <div className="inline-flex items-center gap-1.5 font-bold">
+                                <Phone className="h-3 w-3 text-[#D4A853]" />
+                                <span className="text-[#7C9A90] font-normal">Mobile:</span> +91 {rfqBuyerPhone.replace(/\D/g, "")}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* Form body (scrollable internal area) */}
-                  <form
-                    onSubmit={handleSubmitRfq}
-                    className="flex flex-col flex-1 min-h-0 overflow-hidden"
-                  >
-                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-                      {/* Buyer Details Fields */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5 flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-[#0A4D3C]" />
-                            Buyer Name <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={rfqBuyerName}
-                            onChange={(e) => setRfqBuyerName(e.target.value)}
-                            placeholder="Enter your full name"
-                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5 flex items-center gap-1.5">
-                            <Phone className="h-3.5 w-3.5 text-[#0A4D3C]" />
-                            Buyer Mobile Number <span className="text-red-400">*</span>
-                          </label>
-                          <div className="relative flex rounded-xl border border-gray-200 bg-gray-50 focus-within:border-[#0A4D3C] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0A4D3C]/15 transition-colors overflow-hidden">
-                            <span className="inline-flex items-center px-3 border-r border-gray-200 text-xs font-bold text-[#0A4D3C] bg-gray-100/80 select-none">
-                              +91
-                            </span>
+                      {/* Form body (scrollable internal area) */}
+                      <form
+                        onSubmit={handleSubmitRfq}
+                        className="flex flex-col flex-1 min-h-0 overflow-hidden"
+                      >
+                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                          {/* Buyer Details Fields */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5 flex items-center gap-1.5">
+                                <User className="h-3.5 w-3.5 text-[#0A4D3C]" />
+                                Buyer Name <span className="text-red-400">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={rfqBuyerName}
+                                onChange={(e) => setRfqBuyerName(e.target.value)}
+                                placeholder="Enter your full name"
+                                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5 flex items-center gap-1.5">
+                                <Phone className="h-3.5 w-3.5 text-[#0A4D3C]" />
+                                Buyer Mobile Number <span className="text-red-400">*</span>
+                              </label>
+                              <div className="relative flex rounded-xl border border-gray-200 bg-gray-50 focus-within:border-[#0A4D3C] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0A4D3C]/15 transition-colors overflow-hidden">
+                                <span className="inline-flex items-center px-3 border-r border-gray-200 text-xs font-bold text-[#0A4D3C] bg-gray-100/80 select-none">
+                                  +91
+                                </span>
+                                <input
+                                  type="tel"
+                                  required
+                                  value={rfqBuyerPhone}
+                                  onChange={(e) => setRfqBuyerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                                  placeholder="10-digit mobile number"
+                                  maxLength={10}
+                                  className="w-full bg-transparent px-3.5 py-2.5 text-xs text-gray-900 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Quantity <span className="text-red-400">*</span></label>
+                              <input
+                                type="text"
+                                required
+                                value={rfqQuantity}
+                                onChange={(e) => setRfqQuantity(e.target.value)}
+                                placeholder="e.g. 500 kg, 5 MT"
+                                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Delivery Location <span className="text-red-400">*</span></label>
+                              <input
+                                type="text"
+                                required
+                                value={rfqDeliveryLocation}
+                                onChange={(e) => setRfqDeliveryLocation(e.target.value)}
+                                placeholder="e.g. Mumbai, Dubai Port"
+                                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Subject <span className="text-red-400">*</span></label>
                             <input
-                              type="tel"
+                              type="text"
                               required
-                              value={rfqBuyerPhone}
-                              onChange={(e) => setRfqBuyerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                              placeholder="10-digit mobile number"
-                              maxLength={10}
-                              className="w-full bg-transparent px-3.5 py-2.5 text-xs text-gray-900 focus:outline-none"
+                              value={rfqSubject}
+                              onChange={(e) => setRfqSubject(e.target.value)}
+                              placeholder="e.g. Price enquiry for bulk export order"
+                              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
                             />
                           </div>
-                        </div>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Quantity <span className="text-red-400">*</span></label>
-                          <input
-                            type="text"
-                            required
-                            value={rfqQuantity}
-                            onChange={(e) => setRfqQuantity(e.target.value)}
-                            placeholder="e.g. 500 kg, 5 MT"
-                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Delivery Location <span className="text-red-400">*</span></label>
-                          <input
-                            type="text"
-                            required
-                            value={rfqDeliveryLocation}
-                            onChange={(e) => setRfqDeliveryLocation(e.target.value)}
-                            placeholder="e.g. Mumbai, Dubai Port"
-                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Subject <span className="text-red-400">*</span></label>
-                        <input
-                          type="text"
-                          required
-                          value={rfqSubject}
-                          onChange={(e) => setRfqSubject(e.target.value)}
-                          placeholder="e.g. Price enquiry for bulk export order"
-                          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 transition-colors"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Message</label>
-                        <textarea
-                          rows={3}
-                          value={rfqNotes}
-                          onChange={(e) => setRfqNotes(e.target.value)}
-                          placeholder="Describe your requirements: destination port, packaging, certifications, delivery timeline..."
-                          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 resize-none transition-colors"
-                        />
-                      </div>
-
-                      {/* File Upload */}
-                      <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Upload File <span className="text-gray-400 font-semibold normal-case">(optional — spec sheet, PO, etc.)</span></label>
-                        <label className="flex items-center gap-3 w-full rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:border-[#0A4D3C]/40 hover:bg-[#F0FBF7] px-4 py-3 cursor-pointer transition-colors group">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                            className="sr-only"
-                            onChange={(e) => setRfqFile(e.target.files?.[0] ?? null)}
-                          />
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A4D3C]/10 group-hover:bg-[#0A4D3C]/15 flex-shrink-0 transition-colors">
-                            <Send className="h-4 w-4 text-[#0A4D3C] rotate-[-45deg]" />
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Message</label>
+                            <textarea
+                              rows={3}
+                              value={rfqNotes}
+                              onChange={(e) => setRfqNotes(e.target.value)}
+                              placeholder="Describe your requirements: destination port, packaging, certifications, delivery timeline..."
+                              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-xs text-gray-900 focus:border-[#0A4D3C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4D3C]/15 resize-none transition-colors"
+                            />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            {rfqFile ? (
-                              <p className="text-xs font-bold text-[#0A4D3C] truncate">{rfqFile.name}</p>
-                            ) : (
-                              <>
-                                <p className="text-xs font-bold text-gray-600">Click to upload a file</p>
-                                <p className="text-[10px] text-gray-400 mt-0.5">PDF, DOC, XLS, JPG, PNG up to 10 MB</p>
-                              </>
-                            )}
-                          </div>
-                          {rfqFile && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.preventDefault(); setRfqFile(null); }}
-                              className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          )}
-                        </label>
-                      </div>
-                    </div>
 
-                    {/* Actions Footer (always pinned at the bottom of the card) */}
-                    <div className="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-3.5 bg-gray-50 border-t border-gray-100">
-                      <button
-                        type="button"
-                        onClick={() => setIsRfqModalOpen(false)}
-                        className="rounded-xl border border-gray-200 px-5 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isRfqSubmitting}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#0A4D3C] px-6 py-2.5 text-xs font-bold text-[#D4A853] hover:bg-[#0E5E4A] transition-colors disabled:opacity-60 shadow-md"
-                      >
-                        {isRfqSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Send Enquiry
-                      </button>
-                    </div>
-                  </form>
+                          {/* File Upload */}
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wider font-black text-[#7C9A90] mb-1.5">Upload File <span className="text-gray-400 font-semibold normal-case">(optional — spec sheet, PO, etc.)</span></label>
+                            <label className="flex items-center gap-3 w-full rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:border-[#0A4D3C]/40 hover:bg-[#F0FBF7] px-4 py-3 cursor-pointer transition-colors group">
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                                className="sr-only"
+                                onChange={(e) => setRfqFile(e.target.files?.[0] ?? null)}
+                              />
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A4D3C]/10 group-hover:bg-[#0A4D3C]/15 flex-shrink-0 transition-colors">
+                                <Send className="h-4 w-4 text-[#0A4D3C] rotate-[-45deg]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {rfqFile ? (
+                                  <p className="text-xs font-bold text-[#0A4D3C] truncate">{rfqFile.name}</p>
+                                ) : (
+                                  <>
+                                    <p className="text-xs font-bold text-gray-600">Click to upload a file</p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">PDF, DOC, XLS, JPG, PNG up to 10 MB</p>
+                                  </>
+                                )}
+                              </div>
+                              {rfqFile && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.preventDefault(); setRfqFile(null); }}
+                                  className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              )}
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Actions Footer (always pinned at the bottom of the card) */}
+                        <div className="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-3.5 bg-gray-50 border-t border-gray-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsRfqModalOpen(false)}
+                            className="rounded-xl border border-gray-200 px-5 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isRfqSubmitting}
+                            className="inline-flex items-center gap-2 rounded-xl bg-[#0A4D3C] px-6 py-2.5 text-xs font-bold text-[#D4A853] hover:bg-[#0E5E4A] transition-colors disabled:opacity-60 shadow-md"
+                          >
+                            {isRfqSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            Send Enquiry
+                          </button>
+                        </div>
+                      </form>
+                    </>
+                  )}
                 </motion.div>
               </motion.div>
             ) : null}

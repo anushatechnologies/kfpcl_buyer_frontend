@@ -6,7 +6,6 @@ import { AppShowcase } from "../components/AppShowcase";
 import { CategoryCard } from "../components/CategoryCard";
 import { ProductCard } from "../components/ProductCard";
 import { APP_COPY } from "../lib/config";
-import { productMatchesKeywords } from "../lib/customerExperience";
 import {
   getBanners,
   getBestSellerProducts,
@@ -141,29 +140,6 @@ export function Home() {
     [freshProducts],
   );
 
-  const snacksProducts = useMemo(
-    () =>
-      freshProducts
-        .filter(
-          (product) =>
-            product.categoryName !== "Gold" &&
-            product.categoryName !== "Silver" &&
-            product.categoryName !== "Rice & Grains" &&
-            product.categoryName !== "Atta & Dals" &&
-            product.categoryName !== "Masalas & Spices" &&
-            product.categoryName !== "Beauty & Personal Care" &&
-            productMatchesKeywords(product, [
-              "snack",
-              "chips",
-              "biscuit",
-              "juice",
-              "drink",
-              "beverage",
-            ]),
-        )
-        .slice(0, 4),
-    [freshProducts],
-  );
 
   const cartInspiredProducts = useMemo(() => {
     const cartCategories = new Set(cart.map((item) => item.categoryName).filter(Boolean));
@@ -193,7 +169,7 @@ export function Home() {
   }, [activeBanner?.id]);
 
   return (
-    <div className="app-shell !px-4 !pt-3 !pb-0 sm:!px-6 sm:!pt-4">
+    <div className="app-shell !px-3 sm:!px-6 !pt-3 !pb-0 sm:!pt-4">
       {/* ─── Hero Banner: Full-width, no carousel arrows, no dots ─── */}
       {heroSlides.length > 0 && activeBanner && (() => {
         const bannerLink =
@@ -208,7 +184,7 @@ export function Home() {
             key={activeBanner.id}
             src={activeBanner.imageUrl}
             alt={activeBanner.name || APP_COPY.brand}
-            className="w-full h-full object-cover object-center block select-none rounded-[1.8rem] sm:rounded-[2.4rem]"
+            className="w-full h-full object-cover object-center block select-none rounded-[1.4rem] sm:rounded-[2.4rem]"
             onLoad={(event) => {
               const { naturalHeight, naturalWidth } = event.currentTarget;
               if (naturalWidth > 0 && naturalHeight > 0) {
@@ -228,8 +204,8 @@ export function Home() {
           >
             {/* Banner image container with rounded corners and subtle shadow */}
             <div
-              className="relative w-full overflow-hidden rounded-[1.8rem] sm:rounded-[2.4rem] border border-[#E2E8F0]/80 bg-[#0A1628] shadow-[0_18px_45px_rgba(10,22,40,0.06)]"
-              style={{ aspectRatio: heroAspectRatio, minHeight: 200 }}
+              className="relative w-full overflow-hidden rounded-[1.4rem] sm:rounded-[2.4rem] border border-[#E2E8F0]/80 bg-[#0A1628] shadow-[0_18px_45px_rgba(10,22,40,0.06)]"
+              style={{ aspectRatio: heroAspectRatio, minHeight: 140 }}
             >
               {activeBanner.imageUrl ? (
                 bannerLink ? (
@@ -313,7 +289,7 @@ export function Home() {
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/link:translate-x-0.5" />
               </Link>
             </div>
-            <div className="grid grid-cols-4 gap-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 justify-items-center">
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 justify-items-center">
               {categories.map((category) => (
                 <CategoryCard key={category.id} category={category} compact />
               ))}
@@ -434,30 +410,6 @@ export function Home() {
             </motion.section>
           ) : null}
 
-          {snacksProducts.length > 0 ? (
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5 }}
-              className="mt-12"
-            >
-              <div className="mb-5">
-                <h2 className="section-title">Snacks and beverages</h2>
-                <p className="mt-1 text-sm text-[#6B7B94]">
-                  Quick bites and drinks grouped for faster browsing.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 xl:grid-cols-4">
-                {snacksProducts.map((product) => (
-                  <ProductCard
-                    key={`snacks-${product.id}-${product.primaryVariant?.id || "primary"}`}
-                    product={product}
-                  />
-                ))}
-              </div>
-            </motion.section>
-          ) : null}
 
           <motion.section
             initial={{ opacity: 0, y: 20 }}

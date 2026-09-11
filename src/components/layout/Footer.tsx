@@ -66,7 +66,9 @@ export default function Footer() {
               </h4>
               <div className="space-y-2">
                 <a
-                  href="mailto:kfpclexports@gmail.com"
+                  href="https://mail.google.com/mail/?view=cm&fs=1&to=kfpclexports@gmail.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex items-center gap-2.5 text-sm text-dark-400 hover:text-brand-400 transition-colors group"
                 >
                   <Mail className="h-4 w-4 text-brand-600 group-hover:text-brand-400 flex-shrink-0" />

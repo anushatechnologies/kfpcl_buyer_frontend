@@ -1,24 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import {
   ArrowRight,
+  Briefcase,
+  Building2,
   CheckCircle2,
   Clock3,
   CreditCard,
   Download,
+  Edit3,
   ExternalLink,
   FileText,
   LoaderCircle,
   LocateFixed,
+  Mail,
   MapPin,
   PackageCheck,
   Phone,
   RefreshCcw,
+  RefreshCw,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Star,
   Trash2,
   Truck,
+  User,
+  X,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -39,13 +48,15 @@ import {
   submitDeliveryRating,
 } from "../data/storefrontData";
 import { useAuthStore } from "../store/authStore";
+import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
+import { profileApi, type CustomerProfileDto } from "@/api/profile.api";
 import { useCartStore } from "../store/cartStore";
 import { BuyerRFQDashboard } from "../components/BuyerRFQDashboard";
 import type { Address, OrderTracking, PlacedOrder, Product, Variant } from "../types/storefront";
 
-type AccountTab = "overview" | "orders" | "rfqs" | "addresses" | "tracking";
+type AccountTab = "profile" | "overview" | "orders" | "rfqs" | "addresses" | "tracking";
 
-const accountTabs: AccountTab[] = ["overview", "orders", "rfqs", "addresses", "tracking"];
+const accountTabs: AccountTab[] = ["profile", "overview", "orders", "rfqs", "addresses", "tracking"];
 
 const toTitleCase = (value: string) =>
   value
@@ -199,8 +210,24 @@ export function Account() {
   const navigate = useNavigate();
   const session = useAuthStore((state) => state.session);
   const profile = useAuthStore((state) => state.profile);
+  const updateProfile = useAuthStore((state) => state.updateProfile);
+  const legacyUser = useLegacyAuthStore((state) => state.user);
+  const updateLegacyUser = useLegacyAuthStore((state) => state.updateUser);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
   const addItem = useCartStore((state) => state.addItem);
+
+  const [buyerProfile, setBuyerProfile] = useState<CustomerProfileDto | null>(null);
+  const [isLoadingBuyerProfile, setIsLoadingBuyerProfile] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({
+    fullName: "",
+    email: "",
+    companyName: "",
+    businessType: "",
+    state: "",
+    city: "",
+  });
 
   const [orders, setOrders] = useState<PlacedOrder[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -218,14 +245,219 @@ export function Account() {
   const [ratingFeedback, setRatingFeedback] = useState("");
   const [deletingAddressId, setDeletingAddressId] = useState<number | null>(null);
   const [defaultingAddressId, setDefaultingAddressId] = useState<number | null>(null);
+  const [isViewingRFQAdminReply, setIsViewingRFQAdminReply] = useState(false);
 
   const activeTab = useMemo<AccountTab>(() => {
     const tab = searchParams.get("tab");
-    return accountTabs.includes(tab as AccountTab) ? (tab as AccountTab) : "overview";
+    if (tab && accountTabs.includes(tab as AccountTab)) return tab as AccountTab;
+    return "profile";
   }, [searchParams]);
 
+  // Reset admin-reply view state when leaving the rfqs tab
+  useEffect(() => {
+    if (activeTab !== "rfqs") {
+      setIsViewingRFQAdminReply(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (isEditProfileModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isEditProfileModalOpen]);
+
+  useEffect(() => {
+    if (!session?.accessToken && !legacyUser) return;
+    let isMounted = true;
+    setIsLoadingBuyerProfile(true);
+    profileApi
+      .getProfile()
+      .then((data) => {
+        if (isMounted && data) {
+          setBuyerProfile(data);
+          if (data.fullName || data.email) {
+            updateProfile({
+              id: Number(data.id) || 1,
+              name: data.fullName,
+              email: data.email,
+              phoneNumber: data.phoneNumber,
+              isActive: data.isActive,
+            });
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not fetch profile from backend:", err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingBuyerProfile(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.accessToken, legacyUser, updateProfile]);
+
+  const buyerDisplayName =
+    buyerProfile?.fullName ||
+    profile?.name ||
+    session?.name ||
+    legacyUser?.name ||
+    "Verified Buyer";
+
+  const buyerEmail =
+    buyerProfile?.email ||
+    profile?.email ||
+    session?.email ||
+    legacyUser?.email ||
+    "";
+
+  const buyerPhone =
+    buyerProfile?.phoneNumber ||
+    profile?.phoneNumber ||
+    session?.phoneNumber ||
+    legacyUser?.phone ||
+    "";
+
+  const buyerCompany =
+    buyerProfile?.companyName ||
+    legacyUser?.company?.name ||
+    (buyerDisplayName ? `${buyerDisplayName} Enterprise` : "KFPCL Buyer Enterprise");
+
+  const buyerBusinessType =
+    buyerProfile?.businessType ||
+    legacyUser?.company?.industry ||
+    "Wholesale & Export Buyer";
+
+  const buyerCity =
+    buyerProfile?.city ||
+    legacyUser?.company?.address?.city ||
+    "Hyderabad";
+
+  const buyerState =
+    buyerProfile?.state ||
+    legacyUser?.company?.address?.state ||
+    "Telangana";
+
+  const buyerInitials = (buyerDisplayName.slice(0, 2) || "UB").toUpperCase();
+
+  const handleOpenEditProfile = () => {
+    setEditForm({
+      fullName: buyerDisplayName,
+      email: buyerEmail,
+      companyName: buyerCompany,
+      businessType: buyerBusinessType,
+      state: buyerState,
+      city: buyerCity,
+    });
+    setIsEditProfileModalOpen(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingProfile(true);
+    try {
+      const updated = await profileApi.updateProfile(editForm);
+      setBuyerProfile(updated);
+      updateProfile({
+        id: Number(updated.id) || Number(profile?.id) || 1,
+        name: updated.fullName,
+        email: updated.email,
+        phoneNumber: updated.phoneNumber || buyerPhone,
+        isActive: updated.isActive,
+      });
+      if (updateLegacyUser && legacyUser) {
+        updateLegacyUser({
+          name: updated.fullName,
+          email: updated.email,
+          company: {
+            ...legacyUser.company,
+            name: updated.companyName || "",
+            industry: updated.businessType || "",
+            address: {
+              ...legacyUser.company?.address,
+              city: updated.city || "",
+              state: updated.state || "",
+              country: "India",
+            },
+          },
+        });
+      }
+      toast.success("Buyer profile updated successfully!");
+      setIsEditProfileModalOpen(false);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const errMsg = String(err?.response?.data?.message || err?.message || "");
+      const isAuthError =
+        status === 401 ||
+        status === 400 ||
+        status === 403 ||
+        errMsg.toLowerCase().includes("token") ||
+        errMsg.toLowerCase().includes("unauthorized") ||
+        errMsg.toLowerCase().includes("expired");
+
+      if (isAuthError) {
+        // Optimistically update the UI profile locally so the user's edits are NOT lost!
+        updateProfile({
+          id: Number(profile?.id) || 1,
+          name: editForm.fullName,
+          email: editForm.email,
+          phoneNumber: buyerPhone,
+          isActive: true,
+        });
+        setBuyerProfile((prev) => ({
+          id: prev?.id || 1,
+          fullName: editForm.fullName,
+          email: editForm.email,
+          companyName: editForm.companyName,
+          businessType: editForm.businessType,
+          state: editForm.state,
+          city: editForm.city,
+          phoneNumber: buyerPhone,
+          isVerified: true,
+          isActive: true,
+        }));
+        if (updateLegacyUser && legacyUser) {
+          updateLegacyUser({
+            name: editForm.fullName,
+            email: editForm.email,
+            company: {
+              ...legacyUser.company,
+              name: editForm.companyName || "",
+              industry: editForm.businessType || "",
+              address: {
+                ...legacyUser.company?.address,
+                city: editForm.city || "",
+                state: editForm.state || "",
+                country: "India",
+              },
+            },
+          });
+        }
+        setIsEditProfileModalOpen(false);
+        toast.warning("Profile updated locally. Your session expired — please sign in again to sync with the server.", {
+          duration: 7000,
+          action: {
+            label: "Sign In",
+            onClick: () => openAuthModal(),
+          },
+        });
+        openAuthModal();
+      } else {
+        toast.error(err?.response?.data?.message || "Failed to update profile.");
+      }
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const selectedTrackingOrderId = Number(searchParams.get("order") || "");
-  const customerName = profile?.name || session?.name || "Customer";
+  const customerName = buyerDisplayName;
 
   const updateSearch = (nextValues: Partial<Record<"tab" | "order", string | null>>) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -538,6 +770,134 @@ export function Account() {
       icon: CreditCard,
     },
   ];
+
+  const renderBuyerProfile = () => (
+    <div className="space-y-6">
+      {/* Top Header Card */}
+      <div className="rounded-[1.6rem] sm:rounded-[2.2rem] border border-[#E2E8F0]/90 bg-white p-4 sm:p-8 shadow-[0_20px_50px_rgba(10,22,40,0.04)] relative overflow-hidden">
+        {/* Subtle background flair */}
+        <div className="absolute top-0 right-0 h-48 w-48 bg-[radial-gradient(circle_at_center,rgba(10,77,60,0.06),transparent_70%)] pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 pb-5 sm:pb-6 border-b border-[#F0F4F2]">
+          <div className="flex items-center gap-3.5 sm:gap-5">
+            <div className="h-14 w-14 sm:h-20 sm:w-20 rounded-2xl bg-gradient-to-br from-[#0A4D3C] to-[#1B5D4C] flex items-center justify-center text-white text-lg sm:text-2xl font-bold font-sans shadow-md flex-shrink-0 uppercase">
+              {buyerInitials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-2xl font-extrabold text-[#0A1628] font-sans tracking-tight truncate">
+                  {buyerDisplayName}
+                </h1>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[11px] sm:text-xs font-bold text-emerald-700 flex-shrink-0">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                  Verified Buyer
+                </span>
+              </div>
+              <p className="mt-1 flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[#4A5D78] truncate">
+                <Building2 className="h-3.5 w-3.5 text-[#0A4D3C] flex-shrink-0" />
+                <span className="truncate">{buyerCompany}</span>
+              </p>
+              <p className="mt-0.5 text-[11px] sm:text-xs text-[#8A99AD] truncate">
+                KFPCL Buyer ID: #{session?.customerId || profile?.id || "1028"} • Active Member
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenEditProfile}
+            className="inline-flex items-center justify-center gap-2 self-start sm:self-auto rounded-xl bg-[#0A4D3C] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#D4A853] hover:text-[#0A4D3C] transition-all duration-300 cursor-pointer"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+            Edit Profile
+          </button>
+        </div>
+
+        {/* Details Grid */}
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <User className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Full Legal Name</p>
+              <p className="mt-1 text-sm font-bold text-[#0A1628] truncate">{buyerDisplayName}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <Phone className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Phone / Mobile</p>
+              <p className="mt-1 text-sm font-bold text-[#0A1628] truncate">{buyerPhone || "Verified via OTP"}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <Mail className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Email Address</p>
+              <p className="mt-1 text-sm font-bold text-[#0A1628] truncate">{buyerEmail || "Not provided"}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Enterprise / Company</p>
+              <p className="mt-1 text-sm font-bold text-[#0A1628] truncate">{buyerCompany}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <Briefcase className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Business Type</p>
+              <p className="mt-1 text-sm font-bold text-[#0A1628] truncate">{buyerBusinessType}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <MapPin className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Registered Location</p>
+              <p className="mt-1 text-sm font-bold text-[#0A1628] truncate">{buyerCity}, {buyerState}, India</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Account Role</p>
+              <p className="mt-1 text-sm font-bold text-[#0A1628] truncate">Verified B2B Buyer</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 rounded-2xl border border-[#EEF2F7] bg-[#F8FAFD] p-4 transition hover:bg-white hover:border-[#D1DDD8] hover:shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4F0] text-[#0A4D3C]">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A8B9E]">Verification Status</p>
+              <p className="mt-1 text-sm font-bold text-emerald-700 truncate">100% Verified Profile</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const renderOverview = () => (
     <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -1355,85 +1715,9 @@ export function Account() {
 
   return (
     <div className="app-shell">
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-[2.8rem] border border-white/10 bg-[#0A4D3C] px-6 py-10 text-white shadow-[0_30px_70px_rgba(10,77,60,0.15)] sm:px-10"
-      >
-        {/* Abstract premium backgrounds */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(212,168,83,0.18),transparent_50%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.06),transparent_40%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[length:24px_24px] pointer-events-none" />
 
-        <div className="relative z-10 grid gap-8 xl:grid-cols-[1.08fr_0.92fr] xl:items-start">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-[#D4A853] backdrop-blur-sm">
-              <Sparkles className="h-3.5 w-3.5 text-[#D4A853]" />
-              Account hub
-            </div>
-            <h1 className="mt-5 font-sans font-bold text-[clamp(2.4rem,6vw,4.4rem)] leading-[1.02]">Welcome back, {customerName}.</h1>
-            <p className="mt-5 max-w-2xl text-sm leading-8 text-white/82">
-              Your order history, saved delivery addresses, and live tracking updates now sit together in one advanced customer view.
-            </p>
 
-            <div className="mt-7 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => updateSearch({ tab: "orders" })}
-                className="inline-flex items-center gap-2 rounded-full bg-[#D4A853] text-[#0A4D3C] hover:bg-[#c39742] hover:text-[#0A4D3C] px-5 py-3 text-sm font-semibold shadow-md hover:scale-102 transition-all duration-300 font-bold"
-              >
-                Open orders
-              </button>
-              <button
-                type="button"
-                onClick={() => updateSearch({ tab: "tracking", order: activeOrders[0] ? String(activeOrders[0].id) : null })}
-                className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15 transition duration-300"
-              >
-                Track delivery
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 grid-cols-2">
-            {statCards.map((card) => (
-              <div key={card.label} className="group/card rounded-[1.8rem] border border-white/10 bg-white/5 p-5 backdrop-blur-sm transition-all duration-300 hover:bg-white/10 hover:border-white/16 hover:-translate-y-0.5 shadow-md">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 transition-all duration-300 group-hover/card:scale-108 group-hover/card:bg-white/15">
-                  <card.icon className="h-5 w-5 text-[#D4A853]" />
-                </div>
-                <div className="mt-4 text-xs uppercase tracking-[0.18em] text-white/50">{card.label}</div>
-                <div className="mt-2 font-sans font-bold text-3xl sm:text-4xl text-white group-hover/card:text-[#D4A853] transition-colors">{card.value}</div>
-                <div className="mt-2.5 text-xs sm:text-sm leading-6 text-white/70">{card.helper}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </motion.section>
-
-      <div className="touch-scroll-row mt-8 flex gap-3 overflow-x-auto rounded-[2rem] border border-[#E2E8F0]/80 bg-white/80 p-3 shadow-[0_18px_40px_rgba(10,22,40,0.03)] backdrop-blur-md">
-        {[
-          { value: "overview", label: "Overview", icon: Sparkles },
-          { value: "orders", label: "Orders", icon: ShoppingBag },
-          { value: "rfqs", label: "My RFQs", icon: FileText },
-          { value: "addresses", label: "Addresses", icon: MapPin },
-          { value: "tracking", label: "Tracking", icon: Truck },
-        ].map((tab) => (
-          <button
-            type="button"
-            key={tab.value}
-            onClick={() => updateSearch({ tab: tab.value, order: tab.value === "tracking" && selectedTrackingOrder ? String(selectedTrackingOrder.id) : tab.value === "tracking" ? null : searchParams.get("order") })}
-            className={`inline-flex shrink-0 snap-start items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-all duration-300 ${
-              activeTab === tab.value
-                ? "bg-[#0A4D3C] text-white shadow-[0_8px_20px_rgba(10,77,60,0.15)] hover:scale-102"
-                : "text-[#3A4D6B] hover:bg-[#EAEFEB] hover:text-[#0A4D3C]"
-            }`}
-          >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-8">
+      <div className="mt-4">
         {isLoading ? (
           <div className="rounded-[2.2rem] border border-[#E2E8F0]/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(244,247,252,0.99))] px-6 py-14 text-center shadow-[0_25px_60px_rgba(20,38,25,0.08)]">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#F4F7F5]">
@@ -1444,12 +1728,14 @@ export function Account() {
               Pulling previous orders, saved addresses, and the latest delivery information.
             </p>
           </div>
+        ) : activeTab === "profile" ? (
+          renderBuyerProfile()
         ) : activeTab === "overview" ? (
           renderOverview()
         ) : activeTab === "orders" ? (
           renderOrders()
         ) : activeTab === "rfqs" ? (
-          <BuyerRFQDashboard />
+          <BuyerRFQDashboard onAdminReplyView={setIsViewingRFQAdminReply} />
         ) : activeTab === "addresses" ? (
           renderAddresses()
         ) : (
@@ -1543,6 +1829,127 @@ export function Account() {
           </div>
         </div>
       ) : null}
+
+      {/* Edit Profile Modal rendered at body level to prevent getting trapped in parent layout or footer */}
+      {isEditProfileModalOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 p-3 sm:p-6 backdrop-blur-sm overflow-y-auto"
+              style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
+              onMouseDown={() => setIsEditProfileModalOpen(false)}
+            >
+              <div
+                className="relative w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[1.6rem] sm:rounded-[2rem] border border-gray-100 bg-white p-4 sm:p-7 shadow-[0_30px_90px_rgba(0,0,0,0.35)] my-auto"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F0F7F4] text-[#0A4D3C]">
+                      <Edit3 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-bold text-[#0A1628] font-sans">
+                        Edit Buyer Profile
+                      </h3>
+                      <p className="text-[11px] text-[#7A8B9E]">Update your verified commercial details</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditProfileModalOpen(false)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveProfile} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.fullName}
+                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-300 focus:border-[#0A4D3C] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Business Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-300 focus:border-[#0A4D3C] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Company Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.companyName}
+                      onChange={(e) => setEditForm({ ...editForm, companyName: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-300 focus:border-[#0A4D3C] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Business Type</label>
+                    <input
+                      type="text"
+                      value={editForm.businessType}
+                      onChange={(e) => setEditForm({ ...editForm, businessType: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-300 focus:border-[#0A4D3C] outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">State</label>
+                      <input
+                        type="text"
+                        value={editForm.state}
+                        onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-300 focus:border-[#0A4D3C] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">City</label>
+                      <input
+                        type="text"
+                        value={editForm.city}
+                        onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-300 focus:border-[#0A4D3C] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditProfileModalOpen(false)}
+                      className="flex-1 py-2.5 text-xs font-bold rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingProfile}
+                      className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-[#0A4D3C] hover:bg-[#D4A853] hover:text-[#0A4D3C] text-white flex items-center justify-center gap-1.5 transition disabled:opacity-60 cursor-pointer shadow-sm"
+                    >
+                      {isSavingProfile ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : "Save Changes"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
