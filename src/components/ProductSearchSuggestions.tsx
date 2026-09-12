@@ -108,9 +108,9 @@ export default function ProductSearchSuggestions({ query, onSelect }: ProductSea
           Searching...
         </div>
       ) : (
-        <div className="flex items-center gap-2 px-3 py-4 text-xs text-dark-500">
+        <div className="flex items-center gap-2 px-3 py-4 text-xs font-medium text-dark-600">
           <Package className="h-4 w-4 text-dark-400" />
-          No products match &ldquo;{normalizedQuery}&rdquo; yet.
+          <span>Product not found</span>
         </div>
       )}
     </div>

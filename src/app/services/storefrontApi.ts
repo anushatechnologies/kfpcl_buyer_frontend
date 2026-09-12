@@ -832,11 +832,17 @@ const fetchProducts = async (query?: {
         if (query?.subCategoryId != null) {
           mapped = mapped.filter((item) => item.subCategoryId != null && Number(item.subCategoryId) === Number(query.subCategoryId));
         }
+        if (query?.keyword) {
+          mapped = rankProductsForSearch(mapped, query.keyword);
+        }
         if (mapped.length > 0) {
           return mapped;
         }
+        if (query?.keyword) {
+          return [];
+        }
       } else if (Array.isArray(data) || Array.isArray(data?.content) || Array.isArray(data?.data) || Array.isArray(data?.products)) {
-        if (query?.categoryId != null || query?.subCategoryId != null) {
+        if (query?.categoryId != null || query?.subCategoryId != null || query?.keyword) {
           return [];
         }
       }

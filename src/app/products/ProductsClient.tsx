@@ -540,10 +540,16 @@ export default function ProductsClient({
                 <Package className="h-8 w-8" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-dark-800 mb-1">
-                {selectedCategories.length > 0 ? "Products not available in this category." : "No products found"}
+                {search.trim()
+                  ? "Product not found"
+                  : selectedCategories.length > 0
+                    ? "Products not available in this category."
+                    : "Product not found"}
               </h3>
               <p className="text-dark-500 text-xs sm:text-sm mb-5 max-w-sm mx-auto">
-                Try selecting other categories or clearing your search filters to view more items.
+                {search.trim()
+                  ? `We couldn't find any products matching "${search.trim()}". Try checking for spelling errors or searching for a different item.`
+                  : "Try selecting other categories or clearing your search filters to view more items."}
               </p>
               <button onClick={resetFilters} className="btn-primary py-2 px-4 text-xs font-semibold">
                 Reset All Filters

@@ -527,8 +527,12 @@ export function Navbar() {
           </button>
         </div>
       ) : trimmedQuery ? (
-        <div className="bg-white px-4 py-5 text-sm text-[#6B7B94]">
-          No instant matches yet. Smart search will still check spellings and local keywords for "{trimmedQuery}".
+        <div className="bg-white px-4 py-6 text-center">
+          <div className="mx-auto mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] text-[#15803d]">
+            <Package className="h-5 w-5" />
+          </div>
+          <div className="font-sans text-sm font-bold text-[#0A1628]">Product not found</div>
+          <p className="mt-1 text-xs text-[#6B7B94]">No products match &ldquo;{trimmedQuery}&rdquo;.</p>
         </div>
       ) : null}
     </div>

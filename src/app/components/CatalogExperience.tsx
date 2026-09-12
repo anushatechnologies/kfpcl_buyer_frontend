@@ -104,7 +104,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
 
   const effectiveCategoryId = activeCategoryId ?? resolvedCategoryId;
   const activeSubCategoryId = numberFromParam(searchParams.get("sub"));
-  const keyword = searchParams.get("q") || "";
+  const keyword = (searchParams.get("q") || searchParams.get("search") || searchParams.get("query") || "").trim();
   const trending = searchParams.get("trending") === "1";
   const requestedSort = searchParams.get("sort") as ProductSort | null;
   const sortBy =
@@ -231,7 +231,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
       });
 
     return () => { isMounted = false; };
-  }, [effectiveCategoryId, keyword, trending]);
+  }, [effectiveCategoryId, keyword, trending, activeSubCategoryId]);
 
   /* Close mobile sidebar when a subcategory is selected */
   useEffect(() => {
@@ -266,13 +266,14 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
 
   const sortedProducts = useMemo(() => sortProducts(subCategoryFilteredProducts, sortBy), [subCategoryFilteredProducts, sortBy]);
 
-  const visibleTitle = title || currentCategory?.name || "Shop by category";
-  const visibleSubtitle =
-    subtitle ||
-    (currentCategory?.description
-      ? currentCategory.description
-      : keyword
-        ? `Showing smart results for "${keyword}".`
+  const visibleTitle = keyword
+    ? `Search results for "${keyword}"`
+    : title || currentCategory?.name || "Shop by category";
+  const visibleSubtitle = keyword
+    ? `Showing search results for "${keyword}".`
+    : subtitle ||
+      (currentCategory?.description
+        ? currentCategory.description
         : "Browse categories, refine with subcategories, and compare products on one clean page.");
 
   const activeSubcategoryName = subcategories.find((s) => s.id === activeSubCategoryId)?.name;
@@ -832,6 +833,11 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                       <>
                         <span className="font-extrabold text-[#0F172A]">{sortedProducts.length}</span>{" "}
                         product{sortedProducts.length === 1 ? "" : "s"} found
+                        {keyword && (
+                          <span className="text-[#64748B] font-normal">
+                            {" "}for <span className="text-[#065F46] font-semibold">"{keyword}"</span>
+                          </span>
+                        )}
                         {activeSubcategoryName && (
                           <span className="text-[#64748B] font-normal">
                             {" "}in <span className="text-[#065F46] font-semibold">{activeSubcategoryName}</span>
@@ -840,6 +846,17 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                       </>
                     )}
                   </p>
+                  {keyword && (
+                    <button
+                      type="button"
+                      onClick={() => updateParams({ q: null, search: null, query: null })}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold bg-[#F1F5F9] text-[#475569] border border-[#CBD5E1] px-2 py-0.5 rounded-full hover:bg-[#E2E8F0] transition-colors"
+                      title="Clear search"
+                    >
+                      <span>Clear search</span>
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                   {activeSubCategoryId && (
                     <button
                       type="button"
@@ -887,18 +904,30 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                     <Package className="h-8 w-8" />
                   </div>
                   <h3 className="font-sans text-xl font-bold text-[#0F172A]">
-                    {activeSubCategoryId
-                      ? `No products in ${activeSubcategoryName || "this subcategory"}`
-                      : currentCategory
-                        ? `Products not currently listed in ${currentCategory.name}`
-                        : "No products found"}
+                    {keyword
+                      ? "Product not found"
+                      : activeSubCategoryId
+                        ? `No products in ${activeSubcategoryName || "this subcategory"}`
+                        : currentCategory
+                          ? `Products not currently listed in ${currentCategory.name}`
+                          : "Product not found"}
                   </h3>
                   <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B] leading-relaxed">
-                    {activeSubCategoryId
-                      ? "Suppliers have not listed products under this subcategory yet. You can view all category products or submit a bulk purchase requirement."
-                      : "Verified farmers and suppliers are continuously adding fresh inventory. Post a requirement to receive direct bids or explore other categories."}
+                    {keyword
+                      ? `We couldn't find any products matching "${keyword}". Please check the spelling or try a different search keyword.`
+                      : activeSubCategoryId
+                        ? "Suppliers have not listed products under this subcategory yet. You can view all category products or submit a bulk purchase requirement."
+                        : "Verified farmers and suppliers are continuously adding fresh inventory. Post a requirement to receive direct bids or explore other categories."}
                   </p>
                   <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                    {keyword ? (
+                      <Link
+                        to="/shop"
+                        className="inline-flex items-center justify-center rounded-xl bg-[#065F46] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#047857] transition-colors shadow-xs"
+                      >
+                        Browse all products
+                      </Link>
+                    ) : null}
                     {activeSubCategoryId && (
                       <button
                         type="button"
@@ -915,12 +944,14 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                       Post Buy Requirement (RFQ)
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
-                    <Link
-                      to="/shop"
-                      className="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-5 py-2.5 text-xs font-bold text-[#0F172A] hover:bg-[#F8FAFC] transition-colors shadow-xs"
-                    >
-                      Browse all categories
-                    </Link>
+                    {!keyword && (
+                      <Link
+                        to="/shop"
+                        className="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-5 py-2.5 text-xs font-bold text-[#0F172A] hover:bg-[#F8FAFC] transition-colors shadow-xs"
+                      >
+                        Browse all categories
+                      </Link>
+                    )}
                   </div>
 
                   {/* Explore other categories row */}

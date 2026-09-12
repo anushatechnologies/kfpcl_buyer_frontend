@@ -132,8 +132,21 @@ export const productsApi = {
       let rawData = response.data?.data || response.data;
       let parsed = parseProductList(rawData, filters?.limit || 12);
 
-      // If buyer returned empty products, check general / admin products so newly created Admin products appear immediately
-      if (parsed.products.length === 0) {
+      if (filters?.search) {
+        const q = filters.search.trim().toLowerCase();
+        parsed.products = parsed.products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.description.toLowerCase().includes(q) ||
+            p.category.toLowerCase().includes(q) ||
+            (p.subCategory && p.subCategory.toLowerCase().includes(q)) ||
+            (p.tags && p.tags.some((t) => t.toLowerCase().includes(q)))
+        );
+        parsed.total = parsed.products.length;
+      }
+
+      // If buyer returned empty products, check general / admin products so newly created Admin products appear immediately (only if not searching)
+      if (parsed.products.length === 0 && !filters?.search) {
         try {
           const altResponse = await apiClient.get('/api/products', { params });
           const altData = altResponse.data?.data || altResponse.data;
