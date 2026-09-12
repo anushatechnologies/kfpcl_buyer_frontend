@@ -11,7 +11,6 @@ import {
   FileText,
   LoaderCircle,
   LogOut,
-  MapPin,
   Menu,
   Package,
   Search,
@@ -30,7 +29,6 @@ import { getProductSuggestions, getWalletBalance } from "../data/storefrontData"
 import { useAuthStore } from "../store/authStore";
 import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
 import { useCartStore } from "../store/cartStore";
-import { useLocationStore } from "../store/locationStore";
 import { notificationsApi } from "@/api/notifications.api";
 import type { ProductSuggestion } from "../types/storefront";
 
@@ -101,10 +99,6 @@ export function Navbar() {
   const logout = useAuthStore((state) => state.logout);
 
   const isAuthenticated = Boolean(session || (legacyIsAuthenticated && legacyUser));
-
-  const customerLocation = useLocationStore((state) => state.location);
-  const isResolvingLocation = useLocationStore((state) => state.isResolving);
-  const requestCurrentLocation = useLocationStore((state) => state.requestCurrentLocation);
 
   const [query, setQuery] = useState("");
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -417,8 +411,6 @@ export function Navbar() {
     path === "/"
       ? routerLocation.pathname === path
       : routerLocation.pathname === path || routerLocation.pathname.startsWith(`${path}/`);
-
-  const locationLabel = customerLocation.shortLabel || `${APP_COPY.defaultCity}, ${APP_COPY.defaultState}`;
   const trimmedQuery = query.trim();
   const trendingSearches = ["milk", "bread", "rice", "fruits", "snacks", "oil"];
   const showSuggestionPanel = showSearchSuggestions && (trimmedQuery.length > 0 || isSearchingSuggestions || recentSearches.length > 0);
@@ -855,8 +847,47 @@ export function Navbar() {
               </div>
             </div>
 
-            {/* Mobile Actions: Notifications & Menu trigger */}
-            <div className="flex items-center gap-2 lg:hidden">
+            {/* Mobile Actions: Account / Sign In, Notifications & Menu trigger */}
+            <div className="flex items-center gap-1.5 sm:gap-2 lg:hidden">
+              {/* Mobile Account / Sign In */}
+              {isAuthenticated ? (
+                <div ref={mobileAccountRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAccountMenu((value) => !value);
+                      setShowNotifMenu(false);
+                    }}
+                    aria-label="User account menu"
+                    title={customerDisplayName}
+                    className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-[#D1DDD8] bg-[#F0F7F4] text-[#0A4D3C] shadow-xs hover:border-[#0A4D3C] hover:bg-[#E2F0EA] transition-all cursor-pointer"
+                  >
+                    <UserRound className="h-4.5 w-4.5 text-[#0A4D3C]" />
+                  </button>
+
+                  <AnimatePresence>
+                    {showAccountMenu ? (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        className="fixed inset-x-2.5 top-16 z-[70] max-w-[calc(100vw-1.25rem)] mx-auto rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_20px_50px_rgba(10,22,40,0.22)] sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:w-64"
+                      >
+                        {accountDropdownContent}
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openAuthModal}
+                  className="inline-flex h-9 sm:h-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white px-3 text-xs font-bold text-[#0A1628] shadow-xs hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                >
+                  Sign in
+                </button>
+              )}
+
               {/* Mobile Notification Bell */}
               <div ref={mobileNotifRef} className="relative">
                 <button
@@ -866,7 +897,7 @@ export function Navbar() {
                     setShowMobileNav(false);
                   }}
                   aria-label="Notifications"
-                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0A1628] shadow-xs hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                  className="relative inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0A1628] shadow-xs hover:bg-[#F8FAFC] transition-colors cursor-pointer"
                 >
                   <Bell className="h-4 w-4 text-[#0A4D3C]" />
                   {unreadCount > 0 && (
@@ -897,7 +928,7 @@ export function Navbar() {
                   setShowMobileNav((value) => !value);
                   setShowNotifMenu(false);
                 }}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0A1628]"
+                className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#0A1628]"
               >
                 {showMobileNav ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </button>
@@ -958,61 +989,6 @@ export function Navbar() {
                   </motion.div>
                 ) : null}
               </AnimatePresence>
-            </div>
-
-            {/* Mobile Location Selector */}
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => void requestCurrentLocation()}
-                className="inline-flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-3.5 py-2 text-left shadow-sm"
-              >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#E6F4F0] text-[#0A4D3C]">
-                  {isResolvingLocation ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[8px] uppercase tracking-[0.18em] text-[#6B7B94] leading-none">Deliver to</div>
-                  <div className="truncate text-xs font-semibold text-[#0A1628]">{locationLabel}</div>
-                </div>
-              </button>
-
-              {isAuthenticated ? (
-                <div ref={mobileAccountRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAccountMenu((value) => !value);
-                      setShowNotifMenu(false);
-                    }}
-                    aria-label="User account menu"
-                    title={customerDisplayName}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#D1DDD8] bg-[#F0F7F4] text-[#0A4D3C] shadow-xs cursor-pointer"
-                  >
-                    <UserRound className="h-5 w-5 text-[#0A4D3C]" />
-                  </button>
-
-                  <AnimatePresence>
-                    {showAccountMenu ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 8 }}
-                        className="absolute right-0 top-[calc(100%+0.5rem)] z-[60] w-64 rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-xl"
-                      >
-                        {accountDropdownContent}
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={openAuthModal}
-                  className="inline-flex h-9 items-center justify-center rounded-full border border-[#E2E8F0] bg-white px-4 text-xs font-bold text-[#0A1628] cursor-pointer"
-                >
-                  Sign in
-                </button>
-              )}
             </div>
           </div>
 

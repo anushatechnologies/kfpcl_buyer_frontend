@@ -147,6 +147,12 @@
   #root {
     overflow-x: hidden;
     width: 100%;
+    max-width: 100vw;
+    position: relative;
+  }
+
+  img, picture, video, canvas, svg {
+    max-width: 100%;
   }
 
   h1 {

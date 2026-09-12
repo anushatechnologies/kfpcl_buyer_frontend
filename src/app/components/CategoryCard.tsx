@@ -26,7 +26,7 @@ export function CategoryCard({ category, compact = false }: CategoryCardProps) {
             <img
               src={category.imageUrl}
               alt={category.name}
-              className="h-full w-full rounded-full object-cover transition-transform duration-700 ease-out group-hover:scale-108"
+              className="h-full w-full rounded-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-108"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}

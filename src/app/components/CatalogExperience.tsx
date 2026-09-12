@@ -353,12 +353,12 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                 className="group relative flex items-center gap-3 overflow-hidden rounded-xl p-3 transition-all duration-300 hover:shadow-[0_6px_24px_rgba(10,22,40,0.08)] sm:flex-col sm:items-start sm:gap-0 sm:p-0"
                 style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }}
               >
-                <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg sm:aspect-[4/3] sm:h-auto sm:w-full sm:rounded-b-none sm:rounded-t-xl bg-white/40">
+                <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg sm:aspect-[4/3] sm:h-auto sm:w-full sm:rounded-b-none sm:rounded-t-xl bg-white/40 flex items-center justify-center p-1">
                   {category.imageUrl ? (
                     <img
                       src={category.imageUrl}
                       alt={category.name}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+                      className="max-h-full max-w-full object-contain object-center transition-transform duration-500 group-hover:scale-[1.06]"
                       onError={(e) => { e.currentTarget.style.display = "none"; }}
                     />
                   ) : null}
@@ -440,8 +440,8 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
           className="pb-16"
         >
           {/* Category Page Header Banner */}
-          <div className="mb-6 rounded-2xl bg-white p-6 sm:p-7 border border-[#E2E8F0] shadow-xs">
-            <div className="flex flex-wrap items-center gap-2 mb-2.5">
+          <div className="mb-4 sm:mb-6 rounded-2xl bg-white p-4 sm:p-6 lg:p-7 border border-[#E2E8F0] shadow-xs">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
                 Direct from Verified Farmers & FPOs

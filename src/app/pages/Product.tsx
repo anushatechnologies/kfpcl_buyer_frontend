@@ -456,24 +456,24 @@ export function Product() {
   const qualifyingOffer = productOfferHighlights.find(o => o.type === "qualifying");
 
   return (
-    <div className="app-shell max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 bg-white">
+    <div className="app-shell max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 bg-white overflow-hidden">
       <Link
         to={product.categoryId && product.categoryName ? getCategoryHref({ id: product.categoryId, name: product.categoryName }) : "/shop"}
-        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-[#0A4D3C] hover:bg-[#0A4D3C]/5 transition-colors"
+        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-bold text-[#0A4D3C] hover:bg-[#0A4D3C]/5 transition-colors shadow-2xs"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Continue shopping
       </Link>
 
       {/* Unified Canvas Grid Layout (no separate border boxes for left/right halves) */}
-      <div className="mt-6 sm:mt-10 grid gap-6 sm:gap-10 md:grid-cols-2 items-start relative">
-        {/* Animated background blobs */}
+      <div className="mt-3.5 sm:mt-6 grid gap-6 sm:gap-10 md:grid-cols-2 items-start relative overflow-hidden">
+        {/* Animated background blobs (strictly contained to prevent horizontal scroll) */}
         <div className="absolute top-20 -left-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(10,77,60,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDuration: '4s' }} />
         <div className="absolute bottom-20 -right-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(212,168,83,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDelay: "1.5s", animationDuration: '4s' }} />
 
         {/* Left Side: Product Image & Gallery Wrapper (Stretches to full height of grid for sticky tracking) */}
         <div className="relative self-stretch">
-          <div className="space-y-5 sm:space-y-6 md:sticky md:top-24">
+          <div className="space-y-4 sm:space-y-5 md:sticky md:top-24">
             {/* Gallery Integration: horizontal thumbnails on mobile, vertical strip on desktop */}
             <div className="flex flex-col-reverse md:flex-row gap-3 sm:gap-4 items-start">
               {/* Thumbnail Strip */}
@@ -485,7 +485,7 @@ export function Product() {
                       key={`${image}-${index}`}
                       onClick={() => setSelectedImageIndex(index)}
                       onMouseEnter={() => setSelectedImageIndex(index)}
-                      className={`overflow-hidden rounded-xl border-2 h-12 w-12 sm:h-14 sm:w-14 bg-white transition-all flex-shrink-0 ${
+                      className={`overflow-hidden rounded-xl border-2 h-11 w-11 sm:h-14 sm:w-14 bg-white transition-all flex-shrink-0 ${
                         selectedImageIndex === index ? "border-[#0A4D3C] scale-105 shadow-sm" : "border-transparent hover:border-gray-250"
                       }`}
                     >
@@ -503,12 +503,12 @@ export function Product() {
 
               {/* Main Zoom Frame on Right */}
               <div
-                className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#FAF8F5]/80 flex items-center justify-center border border-gray-150/40 cursor-zoom-in group/zoom aspect-square w-full flex-1 shadow-[0_8px_30px_rgba(0,0,0,0.02)]"
+                className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#FAF8F5]/80 flex items-center justify-center border border-gray-150/40 cursor-zoom-in group/zoom aspect-square w-full max-h-[290px] xs:max-h-[330px] sm:max-h-[420px] md:max-h-none flex-1 shadow-[0_8px_30px_rgba(0,0,0,0.02)]"
                 onMouseMove={handleMouseMove}
                 onMouseEnter={() => setIsZooming(true)}
                 onMouseLeave={() => setIsZooming(false)}
               >
-              <div className="flex h-full w-full items-center justify-center p-8">
+              <div className="flex h-full w-full items-center justify-center p-3.5 sm:p-6 md:p-8">
                 <img
                   src={activeImage}
                   alt={product.name}
@@ -520,7 +520,7 @@ export function Product() {
                         }
                       : undefined
                   }
-                  className="max-h-[90%] max-w-[90%] object-contain mix-blend-multiply transition-transform duration-75 ease-out"
+                  className="max-h-full max-w-full object-contain mix-blend-multiply transition-transform duration-75 ease-out"
                 />
               </div>
               {/* Magnifier indicator */}
@@ -530,21 +530,21 @@ export function Product() {
             </div>
           </div>
 
-          {/* Premium attributes badges aligned cleanly in horizontal strip without boxed lines */}
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-between gap-2 sm:gap-3 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-2">
+          {/* Premium attributes badges aligned cleanly in responsive grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-gray-50/80 border border-gray-100">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#E8F5E9] flex items-center justify-center text-xs flex-shrink-0">🌿</span>
               <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">100% Organic</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#FFEBEE] flex items-center justify-center text-xs flex-shrink-0">🚫</span>
               <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">No Toxins</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#FFF3E0] flex items-center justify-center text-xs flex-shrink-0">🚜</span>
               <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">Farm Direct</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#E0F2F1] flex items-center justify-center text-xs flex-shrink-0">📦</span>
               <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">Eco Friendly</span>
             </div>

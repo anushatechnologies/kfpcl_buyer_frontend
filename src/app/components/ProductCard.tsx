@@ -83,7 +83,7 @@ export function ProductCard({ product }: ProductCardProps) {
                 decoding="async"
                 onLoad={() => setPrimaryLoaded(true)}
                 onError={() => { setPrimaryError(true); setPrimaryLoaded(true); }}
-                className={`h-full w-full object-contain mix-blend-multiply transition-all duration-500 group-hover:scale-[1.05] ${
+                className={`h-full w-full object-contain object-center mix-blend-multiply transition-all duration-500 group-hover:scale-[1.05] ${
                   primaryLoaded ? "opacity-100" : "opacity-0"
                 } ${hasHoverImage ? "group-hover:opacity-0" : ""}`}
               />
@@ -95,7 +95,7 @@ export function ProductCard({ product }: ProductCardProps) {
                 alt={`${product.name} alternate`}
                 loading="lazy"
                 decoding="async"
-                className="absolute inset-2 sm:inset-4 h-[calc(100%-1rem)] sm:h-[calc(100%-2rem)] w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] scale-[1.02] object-contain mix-blend-multiply opacity-0 transition duration-500 group-hover:scale-100 group-hover:opacity-100"
+                className="absolute inset-2 sm:inset-4 h-[calc(100%-1rem)] sm:h-[calc(100%-2rem)] w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] scale-[1.02] object-contain object-center mix-blend-multiply opacity-0 transition duration-500 group-hover:scale-100 group-hover:opacity-100"
               />
             ) : null}
           </div>

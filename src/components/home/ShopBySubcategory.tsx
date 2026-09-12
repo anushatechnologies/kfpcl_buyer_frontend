@@ -300,60 +300,60 @@ function SubcategorySidebarView({ subcategories }: { subcategories: SubcategoryD
         )}
 
         {loadingProducts ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="h-64 rounded-2xl bg-dark-100 animate-pulse" />
+              <div key={i} className="h-56 sm:h-64 rounded-2xl bg-dark-100 animate-pulse" />
             ))}
           </div>
         ) : products.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {products.map((product) => (
               <Link
                 key={product.id}
                 to={`/products/${product.id}`}
-                className="group rounded-2xl border border-dark-200/80 bg-white overflow-hidden hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col"
+                className="group rounded-xl sm:rounded-2xl border border-dark-200/80 bg-white overflow-hidden hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col"
               >
                 {/* Product image */}
-                <div className="relative h-44 w-full overflow-hidden bg-dark-100">
+                <div className="relative h-32 sm:h-44 w-full overflow-hidden bg-gray-50 flex items-center justify-center p-2">
                   <img
                     src={product.images?.[0] || '/images/products/placeholder.jpg'}
                     alt={product.name}
-                    className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                    className="max-h-full max-w-full object-contain object-center mix-blend-multiply transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => { e.currentTarget.src = '/images/products/placeholder.jpg'; }}
                   />
                   {product.inStock ? (
-                    <span className="absolute top-2.5 left-2.5 bg-[#16a34a] text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md">
+                    <span className="absolute top-2 left-2 bg-[#16a34a] text-white text-[9px] sm:text-[10px] font-bold uppercase tracking-wide px-1.5 sm:px-2 py-0.5 rounded-md">
                       In Stock
                     </span>
                   ) : (
-                    <span className="absolute top-2.5 left-2.5 bg-red-500 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md">
+                    <span className="absolute top-2 left-2 bg-red-500 text-white text-[9px] sm:text-[10px] font-bold uppercase tracking-wide px-1.5 sm:px-2 py-0.5 rounded-md">
                       Out of Stock
                     </span>
                   )}
                 </div>
 
                 {/* Product info */}
-                <div className="p-4 flex flex-col flex-1">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#16a34a] mb-1">
+                <div className="p-2.5 sm:p-4 flex flex-col flex-1">
+                  <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-[#16a34a] mb-0.5 sm:mb-1 truncate">
                     {product.category}
                   </p>
-                  <h4 className="text-sm font-bold text-dark-900 group-hover:text-[#15803d] transition-colors leading-snug line-clamp-2">
+                  <h4 className="text-xs sm:text-sm font-bold text-dark-900 group-hover:text-[#15803d] transition-colors leading-snug line-clamp-2">
                     {product.name}
                   </h4>
                   {product.description && (
-                    <p className="text-xs text-dark-500 line-clamp-2 mt-1">{product.description}</p>
+                    <p className="text-[11px] sm:text-xs text-dark-500 line-clamp-1 sm:line-clamp-2 mt-1">{product.description}</p>
                   )}
 
-                  <div className="mt-auto pt-3 flex items-end justify-between border-t border-dark-100/80 mt-3">
+                  <div className="mt-auto pt-2 sm:pt-3 flex items-end justify-between border-t border-dark-100/80">
                     <div>
-                      <span className="text-lg font-extrabold text-dark-900">₹{product.price.toLocaleString('en-IN')}</span>
+                      <span className="text-sm sm:text-lg font-extrabold text-dark-900">₹{product.price.toLocaleString('en-IN')}</span>
                       {product.mrp && product.mrp > product.price && (
-                        <span className="text-xs text-dark-400 line-through ml-1.5">₹{product.mrp.toLocaleString('en-IN')}</span>
+                        <span className="text-[10px] sm:text-xs text-dark-400 line-through ml-1">₹{product.mrp.toLocaleString('en-IN')}</span>
                       )}
-                      <span className="block text-[11px] text-dark-400 mt-0.5">per {product.unit}</span>
+                      <span className="block text-[10px] sm:text-[11px] text-dark-400 mt-0.5">per {product.unit}</span>
                     </div>
-                    <span className="h-8 w-8 rounded-full border border-[#86efac] text-[#15803d] bg-[#f0fdf4] flex items-center justify-center transition-all duration-300 group-hover:bg-[#16a34a] group-hover:text-white group-hover:border-[#16a34a]">
-                      <ArrowRight className="h-4 w-4" />
+                    <span className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-[#86efac] text-[#15803d] bg-[#f0fdf4] flex items-center justify-center transition-all duration-300 group-hover:bg-[#16a34a] group-hover:text-white group-hover:border-[#16a34a] flex-shrink-0">
+                      <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </span>
                   </div>
                 </div>
@@ -469,7 +469,7 @@ export default function ShopBySubcategory({ showAll = false }: ShopBySubcategory
             <SubcategorySidebarView subcategories={displayedSubcategories} />
           ) : (
             /* ─── Card grid for homepage ─── */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
               {displayedSubcategories.map((subcategory) => {
                 const categoryFilter = subcategory.categoryName || subcategory.categoryId || '';
                 const href = `/products?category=${encodeURIComponent(categoryFilter)}&search=${encodeURIComponent(subcategory.name)}`;
@@ -478,14 +478,14 @@ export default function ShopBySubcategory({ showAll = false }: ShopBySubcategory
                   <Link
                     key={subcategory.id}
                     to={href}
-                    className="group overflow-hidden rounded-2xl bg-white border border-dark-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_28px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                    className="group overflow-hidden rounded-xl sm:rounded-2xl bg-white border border-dark-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_28px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 flex flex-col"
                   >
-                    <div className="relative h-36 w-full overflow-hidden bg-dark-100">
+                    <div className="relative h-28 sm:h-36 w-full overflow-hidden bg-gray-50 flex items-center justify-center p-2">
                       {subcategory.imageUrl ? (
                         <img
                           src={subcategory.imageUrl}
                           alt={subcategory.name}
-                          className="h-full w-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                          className="max-h-full max-w-full object-contain object-center transition-transform duration-700 group-hover:scale-105"
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
                       ) : (

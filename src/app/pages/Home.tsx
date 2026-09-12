@@ -184,7 +184,7 @@ export function Home() {
             key={activeBanner.id}
             src={activeBanner.imageUrl}
             alt={activeBanner.name || APP_COPY.brand}
-            className="w-full h-full object-cover object-center block select-none rounded-[1.4rem] sm:rounded-[2.4rem]"
+            className="w-full h-full max-h-[210px] xs:max-h-[240px] sm:max-h-[340px] md:max-h-[420px] object-contain sm:object-cover object-center block select-none rounded-xl sm:rounded-[2.4rem]"
             onLoad={(event) => {
               const { naturalHeight, naturalWidth } = event.currentTarget;
               if (naturalWidth > 0 && naturalHeight > 0) {
@@ -200,12 +200,12 @@ export function Home() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="relative w-full"
+            className="relative w-full overflow-hidden"
           >
             {/* Banner image container with rounded corners and subtle shadow */}
             <div
-              className="relative w-full overflow-hidden rounded-[1.4rem] sm:rounded-[2.4rem] border border-[#E2E8F0]/80 bg-[#0A1628] shadow-[0_18px_45px_rgba(10,22,40,0.06)]"
-              style={{ aspectRatio: heroAspectRatio, minHeight: 140 }}
+              className="relative w-full overflow-hidden rounded-xl sm:rounded-[2.4rem] border border-[#E2E8F0]/80 bg-[#0A1628] shadow-[0_8px_30px_rgba(10,22,40,0.06)] flex items-center justify-center max-h-[210px] xs:max-h-[240px] sm:max-h-[340px] md:max-h-[420px]"
+              style={{ aspectRatio: heroAspectRatio }}
             >
               {activeBanner.imageUrl ? (
                 bannerLink ? (
@@ -214,20 +214,20 @@ export function Home() {
                       href={bannerLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full h-full rounded-[1.8rem] sm:rounded-[2.4rem] overflow-hidden"
+                      className="block w-full h-full rounded-xl sm:rounded-[2.4rem] overflow-hidden"
                     >
                       {bannerImg}
                     </a>
                   ) : (
-                    <Link to={bannerLink} className="block w-full h-full rounded-[1.8rem] sm:rounded-[2.4rem] overflow-hidden">
+                    <Link to={bannerLink} className="block w-full h-full rounded-xl sm:rounded-[2.4rem] overflow-hidden">
                       {bannerImg}
                     </Link>
                   )
                 ) : (
-                  <div className="w-full h-full rounded-[1.8rem] sm:rounded-[2.4rem] overflow-hidden">{bannerImg}</div>
+                  <div className="w-full h-full rounded-xl sm:rounded-[2.4rem] overflow-hidden">{bannerImg}</div>
                 )
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#0A4D3C] to-[#0A1628] text-white/60 text-base font-medium tracking-wide rounded-[1.8rem] sm:rounded-[2.4rem]">
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#0A4D3C] to-[#0A1628] text-white/60 text-base font-medium tracking-wide rounded-xl sm:rounded-[2.4rem]">
                   {activeBanner.name || APP_COPY.brand}
                 </div>
               )}
@@ -480,7 +480,7 @@ export function Home() {
             )}
           </motion.section>
 
-          <div className="mt-12 -mx-4 sm:-mx-6 lg:-mx-8">
+          <div className="mt-12 -mx-3 sm:-mx-6 lg:-mx-8 overflow-hidden">
             <AppShowcase />
           </div>
         </>
