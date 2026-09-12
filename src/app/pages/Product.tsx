@@ -958,7 +958,7 @@ export function Product() {
       </div>
 
       {relatedProducts.length > 0 ? (
-        <section className="mt-16 border-t border-gray-100 pt-12">
+        <section className="mt-6 border-t border-gray-100 pt-6">
           <div className="mb-6">
             <h2 className="text-xl font-black text-[#0A4D3C] tracking-tight">Recommended add-ons</h2>
             <p className="mt-1 text-sm text-[#7C9A90] font-semibold">Products commonly purchased together.</p>
