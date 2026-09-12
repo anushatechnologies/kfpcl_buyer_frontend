@@ -523,10 +523,6 @@ export function Product() {
                   className="max-h-full max-w-full object-contain mix-blend-multiply transition-transform duration-75 ease-out"
                 />
               </div>
-              {/* Magnifier indicator */}
-              <div className="absolute bottom-3 right-3 pointer-events-none rounded-md bg-[#0A4D3C]/80 px-2.5 py-1 text-[8.5px] font-black text-white uppercase tracking-wider opacity-60 group-hover/zoom:opacity-0 transition-opacity">
-                Hover to Zoom
-              </div>
             </div>
           </div>
 
