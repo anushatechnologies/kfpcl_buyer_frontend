@@ -32,7 +32,7 @@ export function Home() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [previouslyOrderedProducts, setPreviouslyOrderedProducts] = useState<Product[]>([]);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
-  const [heroAspectRatio, setHeroAspectRatio] = useState(16 / 9);
+  const [heroAspectRatio, setHeroAspectRatio] = useState<number | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [allProductsLoading, setAllProductsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -164,9 +164,19 @@ export function Home() {
   }, [heroSlides.length]);
 
   useEffect(() => {
-    // Reset while the next image loads so a previous banner cannot crop it.
-    setHeroAspectRatio(16 / 9);
-  }, [activeBanner?.id]);
+    if (!activeBanner?.imageUrl) return;
+    const img = new Image();
+    img.src = activeBanner.imageUrl;
+    if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setHeroAspectRatio(img.naturalWidth / img.naturalHeight);
+    } else {
+      img.onload = () => {
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          setHeroAspectRatio(img.naturalWidth / img.naturalHeight);
+        }
+      };
+    }
+  }, [activeBanner?.id, activeBanner?.imageUrl]);
 
   return (
     <div className="app-shell !px-3 sm:!px-6 !pt-3 !pb-0 sm:!pt-4">
@@ -184,7 +194,7 @@ export function Home() {
             key={activeBanner.id}
             src={activeBanner.imageUrl}
             alt={activeBanner.name || APP_COPY.brand}
-            className="w-full h-full max-h-[210px] xs:max-h-[240px] sm:max-h-[340px] md:max-h-[420px] object-contain sm:object-cover object-center block select-none rounded-xl sm:rounded-[2.4rem]"
+            className="w-full h-full object-contain object-center block select-none rounded-xl sm:rounded-[2.4rem]"
             onLoad={(event) => {
               const { naturalHeight, naturalWidth } = event.currentTarget;
               if (naturalWidth > 0 && naturalHeight > 0) {
@@ -204,8 +214,8 @@ export function Home() {
           >
             {/* Banner image container with rounded corners and subtle shadow */}
             <div
-              className="relative w-full overflow-hidden rounded-xl sm:rounded-[2.4rem] border border-[#E2E8F0]/80 bg-[#0A1628] shadow-[0_8px_30px_rgba(10,22,40,0.06)] flex items-center justify-center max-h-[210px] xs:max-h-[240px] sm:max-h-[340px] md:max-h-[420px]"
-              style={{ aspectRatio: heroAspectRatio }}
+              className="relative w-full overflow-hidden rounded-xl sm:rounded-[2.4rem] border border-[#E2E8F0]/80 bg-transparent shadow-[0_8px_30px_rgba(10,22,40,0.06)] flex items-center justify-center"
+              style={heroAspectRatio ? { aspectRatio: `${heroAspectRatio}` } : undefined}
             >
               {activeBanner.imageUrl ? (
                 bannerLink ? (

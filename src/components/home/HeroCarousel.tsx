@@ -16,6 +16,7 @@ interface SlideItem {
 export default function HeroCarousel() {
   const [slides, setSlides] = useState<SlideItem[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -70,6 +71,23 @@ export default function HeroCarousel() {
     setCurrentSlide((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
   };
 
+  // Track active slide original aspect ratio
+  useEffect(() => {
+    const activeSlide = slides[currentSlide];
+    if (!activeSlide?.imageUrl) return;
+    const img = new Image();
+    img.src = activeSlide.imageUrl;
+    if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setAspectRatio(img.naturalWidth / img.naturalHeight);
+    } else {
+      img.onload = () => {
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          setAspectRatio(img.naturalWidth / img.naturalHeight);
+        }
+      };
+    }
+  }, [slides, currentSlide]);
+
   // ── Loading skeleton ──
   if (isLoading) {
     return (
@@ -89,11 +107,14 @@ export default function HeroCarousel() {
     return null;
   }
 
-  // ── Live banner slides from Admin API (Full image visible, fits screen without scrolling) ──
+  // ── Live banner slides from Admin API (Full image visible, original aspect ratio) ──
   return (
-    <section className="relative w-full group flex flex-col justify-between h-[calc(100dvh-8rem)] sm:h-[calc(100dvh-6rem)] min-h-[calc(100dvh-8rem)] sm:min-h-[calc(100dvh-6rem)]">
-      {/* Slides Container Frame — fills remaining viewport height */}
-      <div className="relative w-full flex-1 min-h-0 flex items-center justify-center overflow-hidden rounded-[1rem] sm:rounded-[1.5rem] lg:rounded-[2rem] bg-transparent">
+    <section className="relative w-full group flex flex-col justify-between">
+      {/* Slides Container Frame — uses Admin-added banner's original aspect ratio */}
+      <div
+        className="relative w-full overflow-hidden rounded-[1rem] sm:rounded-[1.5rem] lg:rounded-[2rem] bg-transparent shadow-[0_8px_30px_rgba(10,22,40,0.06)]"
+        style={aspectRatio ? { aspectRatio: `${aspectRatio}` } : undefined}
+      >
         <div
           className="flex transition-transform duration-700 ease-in-out w-full h-full"
           style={{ transform: `translateX(-${currentSlide * 100}%)` }}
@@ -113,6 +134,12 @@ export default function HeroCarousel() {
                       src={slide.imageUrl}
                       alt={slide.name}
                       className="w-full h-full object-contain block rounded-[1rem] sm:rounded-[1.5rem] lg:rounded-[2rem] select-none"
+                      onLoad={(e) => {
+                        const { naturalHeight, naturalWidth } = e.currentTarget;
+                        if (naturalWidth > 0 && naturalHeight > 0) {
+                          setAspectRatio(naturalWidth / naturalHeight);
+                        }
+                      }}
                     />
                   </Link>
                 ) : (
@@ -120,6 +147,12 @@ export default function HeroCarousel() {
                     src={slide.imageUrl}
                     alt={slide.name}
                     className="w-full h-full object-contain block rounded-[1rem] sm:rounded-[1.5rem] lg:rounded-[2rem] select-none"
+                    onLoad={(e) => {
+                      const { naturalHeight, naturalWidth } = e.currentTarget;
+                      if (naturalWidth > 0 && naturalHeight > 0) {
+                        setAspectRatio(naturalWidth / naturalHeight);
+                      }
+                    }}
                   />
                 )}
               </div>
