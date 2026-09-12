@@ -141,16 +141,22 @@ export default function Navbar() {
   const itemCount = cartItems.length;
 
   const { user, isAuthenticated, clearAuth } = useAuthStore();
-  const isSeller = user?.role === 'seller' || user?.role === 'supplier' || user?.role === 'admin';
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const isSeller = user?.role === 'seller';
+  const [serverUnreadCount, setServerUnreadCount] = useState<number | null>(null);
+  const unreadCount = serverUnreadCount !== null ? serverUnreadCount : notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   const loadNotifications = useCallback(async () => {
-    const response = await notificationsApi.getNotifications(0, 10);
+    const [response, countRes] = await Promise.all([
+      notificationsApi.getNotifications(0, 10),
+      notificationsApi.getUnreadCount().catch(() => null),
+    ]);
+    if (typeof countRes === 'number') {
+      setServerUnreadCount(countRes);
+    }
     const items = response.content.map(mapNotification);
     setNotifications(items);
 
@@ -223,13 +229,14 @@ export default function Navbar() {
   };
 
   const markAllRead = () => {
-    const unreadIds = notifications.filter((notification) => !notification.read).map((notification) => notification.id);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    Promise.all(unreadIds.map((id) => notificationsApi.markAsRead(id))).catch(() => {});
+    setServerUnreadCount(0);
+    notificationsApi.markAllAsRead().catch(() => {});
   };
 
   const markOneRead = (id: string, targetPath?: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setServerUnreadCount((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
     notificationsApi.markAsRead(id).catch(() => {});
     if (targetPath?.startsWith('/')) {
       setNotifOpen(false);

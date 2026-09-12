@@ -118,10 +118,11 @@ export function Navbar() {
   const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
   const [cartAnimationToken, setCartAnimationToken] = useState(0);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [serverUnreadCount, setServerUnreadCount] = useState<number | null>(null);
 
   const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.read).length,
-    [notifications]
+    () => (serverUnreadCount !== null ? serverUnreadCount : notifications.filter((n) => !n.read).length),
+    [serverUnreadCount, notifications]
   );
 
   const customerMobile = session?.phoneNumber || profile?.phoneNumber || legacyUser?.phone || "";
@@ -194,7 +195,13 @@ export function Navbar() {
   // Load real notifications from backend API
   const loadNotifications = useCallback(async () => {
     try {
-      const res = await notificationsApi.getNotifications(0, 20);
+      const [res, countRes] = await Promise.all([
+        notificationsApi.getNotifications(0, 20),
+        notificationsApi.getUnreadCount().catch(() => null),
+      ]);
+      if (typeof countRes === "number") {
+        setServerUnreadCount(countRes);
+      }
       const mapped: AppNotification[] = (res.content || []).map((item) => {
         const text = `${item.type} ${item.title} ${item.body}`.toLowerCase();
         let type: AppNotification["type"] = "info";
@@ -278,6 +285,7 @@ export function Navbar() {
 
   const handleMarkAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setServerUnreadCount(0);
     setRfqReplyPopup(null);
     notificationsApi.markAllAsRead().catch(() => {});
   };
@@ -286,6 +294,7 @@ export function Navbar() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
     );
+    setServerUnreadCount((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
     if (rfqReplyPopup?.id === notif.id) {
       setRfqReplyPopup(null);
     }

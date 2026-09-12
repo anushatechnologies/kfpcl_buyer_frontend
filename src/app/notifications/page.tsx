@@ -48,7 +48,7 @@ export default function NotificationsPage() {
     if (unread.length === 0) return;
 
     setNotifications((items) => items.map((item) => ({ ...item, read: true })));
-    await Promise.all(unread.map((notification) => notificationsApi.markAsRead(notification.id)));
+    await notificationsApi.markAllAsRead();
   };
 
   const unreadCount = notifications.filter((notification) => !notification.read).length;

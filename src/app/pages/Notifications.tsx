@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 type NotifType = 'order' | 'enquiry' | 'stock' | 'rfq' | 'payment' | 'info';
 
 function classifyNotification(item: NotificationItem): NotifType {
-  const text = `${item.type} ${item.title} ${item.body}`.toLowerCase();
+  const text = `${item.type} ${item.referenceType || ''} ${item.title} ${item.body || item.message || ''}`.toLowerCase();
   if (text.includes('order')) return 'order';
   if (text.includes('enquir') || text.includes('inquir')) return 'enquiry';
   if (text.includes('stock')) return 'stock';
@@ -44,7 +44,7 @@ function classifyNotification(item: NotificationItem): NotifType {
 }
 
 function isRfqReply(item: NotificationItem): boolean {
-  const text = `${item.type} ${item.title} ${item.body}`.toLowerCase();
+  const text = `${item.type} ${item.referenceType || ''} ${item.title} ${item.body || item.message || ''}`.toLowerCase();
   return (
     text.includes('supplier replied') ||
     (text.includes('rfq') &&

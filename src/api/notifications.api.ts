@@ -1,11 +1,26 @@
 import apiClient from './client';
 
+export interface BackendNotificationDto {
+  id: number | string;
+  type: string;
+  title: string;
+  message: string;
+  referenceType?: string | null;
+  referenceId?: number | string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
 export interface NotificationItem {
   id: string;
   type: string;
   title: string;
   body: string;
+  message?: string;
   read: boolean;
+  isRead?: boolean;
+  referenceType?: string | null;
+  referenceId?: number | string | null;
   targetPath?: string;
   createdAt: string;
 }
@@ -183,9 +198,11 @@ async function fetchRfqReplyNotifications(): Promise<NotificationItem[]> {
 
 export const notificationsApi = {
   /**
-   * 🔔 Fetch real notifications from /api/notifications and /api/buyer/rfqs replies
+   * 🔔 GET /api/notifications
+   * Fetch all notifications belonging to the logged-in buyer
+   * Headers: Authorization: Bearer <BUYER_JWT_TOKEN>
    */
-  getNotifications: async (page: number = 0, size: number = 10): Promise<PaginatedNotifications> => {
+  getNotifications: async (page: number = 0, size: number = 20): Promise<PaginatedNotifications> => {
     if (!hasAuthToken()) {
       return {
         content: [],
@@ -201,22 +218,41 @@ export const notificationsApi = {
         fetchRfqReplyNotifications().catch(() => []),
       ]);
 
-      const data = backendRes?.data?.data || backendRes?.data || {};
-      const rawContent: any[] = Array.isArray(data.content)
-        ? data.content
-        : Array.isArray(data)
+      const data = backendRes?.data?.data !== undefined ? backendRes.data.data : backendRes?.data;
+      const rawContent: any[] = Array.isArray(data)
         ? data
+        : Array.isArray(data?.content)
+        ? data.content
         : [];
 
-      const backendItems: NotificationItem[] = rawContent.map((item: any) => ({
-        id: String(item.id || ''),
-        type: item.type || 'INFO',
-        title: item.title || 'Notification',
-        body: item.body || item.message || '',
-        read: Boolean(item.read || item.isRead),
-        targetPath: item.targetPath || item.link || '',
-        createdAt: item.createdAt || new Date().toISOString(),
-      }));
+      const backendItems: NotificationItem[] = rawContent.map((item: any) => {
+        const isRead = Boolean(item.isRead ?? item.read);
+        let targetPath = item.targetPath || item.link || '';
+        if (!targetPath) {
+          const refType = String(item.referenceType || item.type || '').toUpperCase();
+          if (refType === 'RFQ') {
+            targetPath = '/account?tab=rfqs';
+          } else if (refType === 'ORDER') {
+            targetPath = '/orders';
+          } else if (refType === 'PRODUCT' && item.referenceId) {
+            targetPath = `/products/${item.referenceId}`;
+          }
+        }
+
+        return {
+          id: String(item.id ?? ''),
+          type: item.type || 'GENERAL',
+          title: item.title || 'Notification',
+          body: item.message || item.body || '',
+          message: item.message || item.body || '',
+          read: isRead,
+          isRead,
+          referenceType: item.referenceType ?? null,
+          referenceId: item.referenceId ?? null,
+          targetPath,
+          createdAt: item.createdAt || new Date().toISOString(),
+        };
+      });
 
       // Combine backend notifications and RFQ replies, deduplicating by ID
       const seenIds = new Set<string>();
@@ -251,7 +287,7 @@ export const notificationsApi = {
   },
 
   /**
-   * Fetch the complete notification inbox for the full Notifications page.
+   * Fetch complete list of notifications for the inbox.
    */
   getAllNotifications: async (): Promise<NotificationItem[]> => {
     const res = await notificationsApi.getNotifications(0, 100);
@@ -259,76 +295,105 @@ export const notificationsApi = {
   },
 
   /**
-   * PATCH /api/notifications/{id}/read - Mark a notification as read when clicked
+   * 🔔 GET /api/notifications/unread-count
+   * Fetch unread count for notification bell icon counter
+   * Headers: Authorization: Bearer <BUYER_JWT_TOKEN>
    */
-  markAsRead: async (notificationId: string): Promise<NotificationItem | null> => {
-    if (!hasAuthToken()) return null;
+  getUnreadCount: async (): Promise<number> => {
+    if (!hasAuthToken()) return 0;
     try {
-      if (notificationId.startsWith('rfq-')) {
-        saveReadRfqReply(notificationId);
+      const response = await apiClient.get<any>('/api/notifications/unread-count');
+      const data = response.data?.data !== undefined ? response.data.data : response.data;
+      if (typeof data?.count === 'number') {
+        return data.count;
+      }
+      if (typeof data === 'number') {
+        return data;
+      }
+      // Fallback: local unread count
+      const res = await notificationsApi.getNotifications(0, 50);
+      return res.content.filter((n) => !n.read).length;
+    } catch (err) {
+      console.warn('Failed to fetch unread count from /api/notifications/unread-count', err);
+      try {
+        const res = await notificationsApi.getNotifications(0, 50);
+        return res.content.filter((n) => !n.read).length;
+      } catch {
+        return 0;
+      }
+    }
+  },
+
+  /**
+   * 🔔 PATCH /api/notifications/{notificationId}/read
+   * Mark a single notification as read
+   * Headers: Authorization: Bearer <BUYER_JWT_TOKEN>
+   */
+  markAsRead: async (notificationId: string | number): Promise<NotificationItem | null> => {
+    if (!hasAuthToken()) return null;
+    const idStr = String(notificationId);
+    try {
+      if (idStr.startsWith('rfq-')) {
+        saveReadRfqReply(idStr);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('kfpcl:notifications-updated'));
         }
         return {
-          id: notificationId,
+          id: idStr,
           type: 'RFQ_REPLY',
           title: '',
           body: '',
+          message: '',
           read: true,
+          isRead: true,
           createdAt: new Date().toISOString(),
         };
       }
 
-      const response = await apiClient.patch<any>(`/api/notifications/${notificationId}/read`);
-      const data = response.data?.data || response.data || {};
+      const response = await apiClient.patch<any>(`/api/notifications/${idStr}/read`);
+      const data = response.data?.data !== undefined ? response.data.data : response.data || {};
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('kfpcl:notifications-updated'));
       }
       return {
-        id: String(data.id || notificationId),
-        type: data.type || 'INFO',
+        id: String(data.id || idStr),
+        type: data.type || 'GENERAL',
         title: data.title || '',
-        body: data.body || '',
+        body: data.message || data.body || '',
+        message: data.message || data.body || '',
         read: true,
+        isRead: true,
+        referenceType: data.referenceType ?? null,
+        referenceId: data.referenceId ?? null,
         targetPath: data.targetPath || '',
         createdAt: data.createdAt || new Date().toISOString(),
       };
     } catch (err) {
-      console.warn(`Failed to mark notification ${notificationId} as read`, err);
+      console.warn(`Failed to mark notification ${idStr} as read`, err);
       return null;
     }
   },
 
   /**
-   * PATCH /api/notifications/read-all - Mark all notifications as read
+   * 🔔 PATCH /api/notifications/read-all
+   * Mark all notifications as read
+   * Headers: Authorization: Bearer <BUYER_JWT_TOKEN>
    */
-  markAllAsRead: async (): Promise<void> => {
-    if (!hasAuthToken()) return;
+  markAllAsRead: async (): Promise<boolean> => {
+    if (!hasAuthToken()) return false;
     try {
-      // Mark all current RFQ replies as read in localStorage
       const replies = await fetchRfqReplyNotifications().catch(() => []);
       for (const r of replies) {
         saveReadRfqReply(r.id);
       }
-      await apiClient.patch<any>('/api/notifications/read-all').catch(() => {});
+      await apiClient.patch<any>('/api/notifications/read-all');
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('kfpcl:notifications-updated'));
       }
+      return true;
     } catch (err) {
       console.warn('Failed to mark all notifications as read', err);
-    }
-  },
-
-  /**
-   * GET /api/notifications/unread-count - Get unread count
-   */
-  getUnreadCount: async (): Promise<number> => {
-    if (!hasAuthToken()) return 0;
-    try {
-      const res = await notificationsApi.getNotifications(0, 100);
-      return res.content.filter((n) => !n.read).length;
-    } catch {
-      return 0;
+      return false;
     }
   },
 

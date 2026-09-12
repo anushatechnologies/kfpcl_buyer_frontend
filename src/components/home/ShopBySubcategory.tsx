@@ -167,13 +167,13 @@ function SubcategorySidebarView({ subcategories }: { subcategories: SubcategoryD
         )}
 
         {loadingProducts ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="h-64 rounded-2xl bg-dark-100 animate-pulse" />
             ))}
           </div>
         ) : products.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {products.map((product) => (
               <Link
                 key={product.id}
@@ -318,7 +318,7 @@ export default function ShopBySubcategory({ showAll = false }: ShopBySubcategory
                   <div key={i} className="h-14 rounded-xl bg-dark-100 animate-pulse" />
                 ))}
               </div>
-              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {Array.from({ length: 6 }, (_, i) => (
                   <div key={i} className="h-64 rounded-2xl bg-dark-100 animate-pulse" />
                 ))}

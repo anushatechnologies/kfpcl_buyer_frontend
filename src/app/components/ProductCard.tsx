@@ -164,20 +164,22 @@ export function ProductCard({ product }: ProductCardProps) {
           </div>
 
           <div
-            className="mt-2.5 sm:mt-3 grid grid-cols-3 gap-1 sm:gap-1.5"
+            className="mt-2.5 sm:mt-3 grid grid-cols-2 gap-1.5"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
             }}
           >
+            {/* RFQ */}
             <Link
               to={getProductHref(product)}
-              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg bg-[#0A4D3C] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-[#0E5E4A] min-w-0"
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-[#0A4D3C] px-2 text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-[#0E5E4A] overflow-hidden"
               aria-label={`Request an RFQ for ${product.name}`}
             >
-              <FileText className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-              <span className="truncate">RFQ</span>
+              <FileText className="h-3 w-3 flex-shrink-0" />
+              <span>RFQ</span>
             </Link>
+            {/* Call */}
             <button
               type="button"
               onClick={(e) => {
@@ -190,24 +192,22 @@ export function ProductCard({ product }: ProductCardProps) {
                   productName: product.name,
                 });
               }}
-              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg border border-[#0A4D3C]/20 bg-[#F0FBF7] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-[#0A4D3C] transition-colors hover:bg-[#0A4D3C]/10 cursor-pointer min-w-0"
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-[#0A4D3C]/20 bg-[#F0FBF7] px-2 text-[9px] font-black uppercase tracking-wide text-[#0A4D3C] transition-colors hover:bg-[#0A4D3C]/10 cursor-pointer overflow-hidden"
               aria-label={`Call about ${product.name}`}
             >
-              <Phone className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-              <span className="truncate">Call</span>
+              <Phone className="h-3 w-3 flex-shrink-0" />
+              <span>Call</span>
             </button>
+            {/* WhatsApp — full width bottom row, never truncated */}
             <a
               href={whatsappHref}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-7 sm:h-8 items-center justify-center gap-0.5 sm:gap-1 rounded-lg bg-[#25D366] px-1 sm:px-2 text-[8px] sm:text-[9px] font-black text-white transition-colors hover:bg-[#1FB957] min-w-0"
+              className="col-span-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[#25D366] px-3 text-[10px] font-black text-white transition-colors hover:bg-[#1FB957]"
               aria-label={`Message about ${product.name} on WhatsApp`}
             >
-              <MessageCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-              <span className="truncate">
-                <span className="hidden sm:inline">WhatsApp</span>
-                <span className="sm:hidden">Chat</span>
-              </span>
+              <MessageCircle className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>WhatsApp</span>
             </a>
           </div>
         </div>
