@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { ArrowLeft, ArrowRight, Package, Search, ChevronRight, ShoppingBag } from 'lucide-react';
+import { Link } from 'react-router';
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Package, Search, ShoppingBag, X } from 'lucide-react';
 import { subcategoriesApi, SubcategoryDto } from '@/api/subcategories.api';
 import { productsApi } from '@/api/products.api';
 import { Product } from '@/types/product';
@@ -19,6 +18,7 @@ function SubcategorySidebarView({ subcategories }: { subcategories: SubcategoryD
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const activeSubcategory = subcategories.find((s) => s.id === activeId);
 
@@ -51,95 +51,228 @@ function SubcategorySidebarView({ subcategories }: { subcategories: SubcategoryD
       )
     : subcategories;
 
-  /* ─── Mobile: horizontal pill bar + product grid ─── */
-  /* ─── Desktop: left sidebar + right product grid  ─── */
+  /* ─── Mobile: active banner + expandable drawer + pills ─── */
+  /* ─── Desktop & Tablet: full vertical left sidebar expanded to bottom of page ─── */
   return (
-    <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 min-h-[60vh]">
+    <div className="flex flex-col md:flex-row gap-6 items-stretch min-h-[calc(100vh-180px)]">
       {/* ──────── Sidebar ──────── */}
-      <aside className="w-full lg:w-[280px] xl:w-[300px] flex-shrink-0">
-        {/* Search inside sidebar */}
-        <div className="relative mb-3 hidden lg:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Filter subcategories…"
-            value={sidebarSearch}
-            onChange={(e) => setSidebarSearch(e.target.value)}
-            className="w-full rounded-xl border border-dark-200 bg-white pl-9 pr-3 py-2.5 text-sm text-dark-800 placeholder:text-dark-400 focus:outline-none focus:ring-2 focus:ring-[#16a34a]/30 focus:border-[#16a34a] transition"
-          />
-        </div>
-
-        {/* Mobile: horizontal scroll pills */}
-        <div className="flex lg:hidden gap-2 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
-          {filteredSubs.map((sub) => (
+      <aside className="w-full md:w-[280px] lg:w-[310px] xl:w-[340px] flex-shrink-0 md:self-stretch flex flex-col">
+        {/* Mobile: active subcategory indicator + toggle button */}
+        <div className="md:hidden mb-4">
+          <div className="flex items-center justify-between gap-2 mb-2.5 p-2.5 rounded-xl bg-white border border-dark-200/80 shadow-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="h-8 w-8 rounded-lg bg-[#f0fdf4] border border-[#86efac] flex items-center justify-center text-[#15803d] flex-shrink-0">
+                <Package className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-bold text-dark-400 tracking-wider">Subcategory</p>
+                <p className="text-xs font-bold text-dark-900 truncate">
+                  {activeSubcategory ? activeSubcategory.name : 'Select Subcategory'}
+                </p>
+              </div>
+            </div>
             <button
-              key={sub.id}
-              onClick={() => setActiveId(sub.id)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-all duration-200 ${
-                activeId === sub.id
-                  ? 'bg-[#15803d] text-white border-[#15803d] shadow-md'
-                  : 'bg-white text-dark-700 border-dark-200 hover:border-[#86efac] hover:text-[#15803d]'
-              }`}
+              type="button"
+              onClick={() => setMobileDrawerOpen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0fdf4] text-[#15803d] border border-[#86efac] text-xs font-bold hover:bg-[#dcfce7] transition-colors flex-shrink-0"
             >
-              {sub.name}
+              <span>{mobileDrawerOpen ? 'Hide List' : `All (${subcategories.length})`}</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${mobileDrawerOpen ? 'rotate-180' : ''}`} />
             </button>
-          ))}
-        </div>
+          </div>
 
-        {/* Desktop: vertical list */}
-        <nav className="hidden lg:flex flex-col rounded-2xl border border-dark-200/80 bg-white overflow-hidden max-h-[calc(100vh-220px)] overflow-y-auto">
-          {filteredSubs.length === 0 && (
-            <p className="px-4 py-6 text-sm text-dark-400 text-center">No matches</p>
+          {/* Mobile expanded vertical list */}
+          {mobileDrawerOpen && (
+            <div className="mb-3 rounded-2xl bg-white border border-dark-200/80 shadow-xs p-3 animate-fade-in">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-dark-100">
+                <span className="text-xs font-bold text-dark-900">All Subcategories ({subcategories.length})</span>
+                <span className="text-[11px] text-dark-400">Tap to select</span>
+              </div>
+              {subcategories.length > 3 && (
+                <div className="relative mb-2.5">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-dark-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search subcategories…"
+                    value={sidebarSearch}
+                    onChange={(e) => setSidebarSearch(e.target.value)}
+                    className="w-full text-xs pl-8 pr-7 py-1.5 rounded-lg border border-dark-200 bg-dark-50 placeholder:text-dark-400 text-dark-800 focus:outline-none focus:border-[#16a34a]"
+                  />
+                  {sidebarSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSidebarSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-dark-400 hover:text-dark-700"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="max-h-72 overflow-y-auto divide-y divide-dark-100/70 custom-scrollbar">
+                {filteredSubs.map((sub) => {
+                  const isActive = activeId === sub.id;
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveId(sub.id);
+                        setMobileDrawerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between py-2.5 px-2 rounded-lg text-left text-xs transition-colors ${
+                        isActive ? 'bg-[#f0fdf4] text-[#15803d] font-bold' : 'text-dark-700 hover:bg-dark-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                        <div className="h-7 w-7 rounded-md overflow-hidden bg-dark-100 flex items-center justify-center flex-shrink-0 border border-dark-200">
+                          {sub.imageUrl ? (
+                            <img src={sub.imageUrl} alt={sub.name} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                          ) : (
+                            <Package className="h-3.5 w-3.5 text-dark-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="leading-snug break-words">{sub.name}</p>
+                          {sub.categoryName && (
+                            <p className="text-[10px] text-dark-400 font-normal">{sub.categoryName}</p>
+                          )}
+                        </div>
+                      </div>
+                      {isActive && (
+                        <span className="text-[11px] font-bold text-[#16a34a] flex-shrink-0">Selected</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
-          {filteredSubs.map((sub, idx) => {
-            const isActive = activeId === sub.id;
-            return (
+
+          {/* Mobile horizontal scroll pills */}
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+            {filteredSubs.map((sub) => (
               <button
                 key={sub.id}
                 onClick={() => setActiveId(sub.id)}
-                className={`group w-full text-left px-4 py-3.5 flex items-center gap-3 transition-all duration-200 border-b border-dark-100/60 last:border-b-0 ${
-                  isActive
-                    ? 'bg-[#f0fdf4] border-l-[3px] border-l-[#16a34a]'
-                    : 'hover:bg-dark-50 border-l-[3px] border-l-transparent'
+                className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                  activeId === sub.id
+                    ? 'bg-[#15803d] text-white border-[#15803d] shadow-sm'
+                    : 'bg-white text-dark-700 border-dark-200 hover:border-[#86efac] hover:text-[#15803d]'
                 }`}
               >
-                {/* Subcategory image thumbnail */}
-                <div className={`h-9 w-9 rounded-lg overflow-hidden flex-shrink-0 border ${
-                  isActive ? 'border-[#86efac]' : 'border-dark-200'
-                }`}>
-                  {sub.imageUrl ? (
-                    <Image
-                      src={sub.imageUrl}
-                      alt={sub.name}
-                      width={36}
-                      height={36}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-dark-100 flex items-center justify-center">
-                      <Package className="h-4 w-4 text-dark-400" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold truncate leading-tight ${
-                    isActive ? 'text-[#15803d]' : 'text-dark-800 group-hover:text-[#15803d]'
-                  }`}>
-                    {sub.name}
-                  </p>
-                  {sub.categoryName && (
-                    <p className="text-[11px] text-dark-400 truncate mt-0.5">{sub.categoryName}</p>
-                  )}
-                </div>
-
-                <ChevronRight className={`h-4 w-4 flex-shrink-0 transition-colors ${
-                  isActive ? 'text-[#16a34a]' : 'text-dark-300 group-hover:text-dark-500'
-                }`} />
+                {sub.name}
               </button>
-            );
-          })}
-        </nav>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop & Tablet: full vertical list expanded to bottom of page */}
+        <div className="hidden md:flex flex-col flex-1 h-full md:sticky md:top-24 md:max-h-[calc(100vh-100px)] rounded-2xl border border-dark-200/80 bg-white shadow-xs overflow-hidden">
+          {/* Header with search */}
+          <div className="p-4 border-b border-dark-100/80 bg-[#FAFAFA] flex-shrink-0">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-[#f0fdf4] border border-[#86efac] flex items-center justify-center text-[#15803d]">
+                  <Package className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-dark-900 leading-tight">Subcategories</h2>
+                  <p className="text-[11px] text-dark-400 font-medium">{subcategories.length} available</p>
+                </div>
+              </div>
+              {sidebarSearch && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarSearch('')}
+                  className="text-[11px] font-bold text-[#15803d] hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-dark-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Filter subcategories…"
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                className="w-full text-xs pl-8 pr-7 py-2 rounded-xl border border-dark-200 bg-white text-dark-800 placeholder:text-dark-400 focus:outline-none focus:ring-2 focus:ring-[#16a34a]/30 focus:border-[#16a34a] transition"
+              />
+              {sidebarSearch && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-dark-400 hover:text-dark-700"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Scrollable list stretching vertically */}
+          <nav className="flex-1 overflow-y-auto divide-y divide-dark-100/60 custom-scrollbar overscroll-contain">
+            {filteredSubs.length === 0 && (
+              <div className="px-4 py-8 text-sm text-dark-400 text-center">
+                <p className="font-semibold text-dark-600 mb-1">No matches found</p>
+                <p className="text-xs">Try searching for something else</p>
+              </div>
+            )}
+            {filteredSubs.map((sub) => {
+              const isActive = activeId === sub.id;
+              return (
+                <button
+                  key={sub.id}
+                  onClick={() => setActiveId(sub.id)}
+                  className={`group w-full text-left p-3 flex items-center gap-3 transition-all duration-200 ${
+                    isActive
+                      ? 'bg-[#f0fdf4] border-l-4 border-l-[#16a34a]'
+                      : 'hover:bg-dark-50 border-l-4 border-l-transparent'
+                  }`}
+                >
+                  {/* Thumbnail */}
+                  <div className={`h-9 w-9 rounded-lg overflow-hidden flex-shrink-0 border bg-dark-50 flex items-center justify-center ${
+                    isActive ? 'border-[#86efac]' : 'border-dark-200'
+                  }`}>
+                    {sub.imageUrl ? (
+                      <img
+                        src={sub.imageUrl}
+                        alt={sub.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <Package className="h-4 w-4 text-dark-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0 pr-1">
+                    <p className={`text-sm font-semibold leading-snug break-words ${
+                      isActive ? 'text-[#15803d]' : 'text-dark-800 group-hover:text-[#15803d]'
+                    }`}>
+                      {sub.name}
+                    </p>
+                    {sub.categoryName && (
+                      <p className="text-[11px] text-dark-400 font-medium break-words mt-0.5">{sub.categoryName}</p>
+                    )}
+                  </div>
+
+                  <ChevronRight className={`h-4 w-4 flex-shrink-0 transition-colors ${
+                    isActive ? 'text-[#16a34a]' : 'text-dark-300 group-hover:text-dark-500'
+                  }`} />
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Footer status */}
+          <div className="px-3.5 py-2 bg-[#FAFAFA] border-t border-dark-100/80 flex items-center justify-between text-[11px] text-dark-500 font-medium flex-shrink-0">
+            <span>Showing {filteredSubs.length} of {subcategories.length} subcategories</span>
+          </div>
+        </div>
       </aside>
 
       {/* ──────── Products area ──────── */}
@@ -149,7 +282,7 @@ function SubcategorySidebarView({ subcategories }: { subcategories: SubcategoryD
           <div className="mb-5 flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl overflow-hidden border border-dark-200 flex-shrink-0 bg-dark-100">
               {activeSubcategory.imageUrl ? (
-                <Image src={activeSubcategory.imageUrl} alt={activeSubcategory.name} width={40} height={40} className="h-full w-full object-cover" />
+                <img src={activeSubcategory.imageUrl} alt={activeSubcategory.name} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
               ) : (
                 <div className="h-full w-full flex items-center justify-center"><Package className="h-5 w-5 text-dark-400" /></div>
               )}
@@ -177,17 +310,16 @@ function SubcategorySidebarView({ subcategories }: { subcategories: SubcategoryD
             {products.map((product) => (
               <Link
                 key={product.id}
-                href={`/products/${product.id}`}
+                to={`/products/${product.id}`}
                 className="group rounded-2xl border border-dark-200/80 bg-white overflow-hidden hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col"
               >
                 {/* Product image */}
                 <div className="relative h-44 w-full overflow-hidden bg-dark-100">
-                  <Image
+                  <img
                     src={product.images?.[0] || '/images/products/placeholder.jpg'}
                     alt={product.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                    className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { e.currentTarget.src = '/images/products/placeholder.jpg'; }}
                   />
                   {product.inStock ? (
                     <span className="absolute top-2.5 left-2.5 bg-[#16a34a] text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md">
@@ -270,11 +402,11 @@ export default function ShopBySubcategory({ showAll = false }: ShopBySubcategory
 
   return (
     <section className="bg-white border-y border-dark-100/80">
-      <div className="section py-10 lg:py-14 animate-fade-in">
+      <div className="section py-6 sm:py-8 lg:py-10 animate-fade-in">
         {showAll && (
           <div className="mb-4 flex items-center">
             <Link
-              href="/"
+              to="/"
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-dark-500 hover:text-brand-700 transition-colors group"
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
@@ -298,7 +430,7 @@ export default function ShopBySubcategory({ showAll = false }: ShopBySubcategory
 
           {!showAll && (
             <Link
-              href="/subcategories"
+              to="/subcategories"
               aria-label="View All Subcategories"
               title="View All Subcategories"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#16a34a] text-[#15803d] hover:bg-[#f0fdf4] font-semibold text-xs sm:text-sm transition-colors self-start sm:self-auto"
@@ -312,8 +444,8 @@ export default function ShopBySubcategory({ showAll = false }: ShopBySubcategory
         {isLoading ? (
           showAll ? (
             /* Sidebar skeleton */
-            <div className="flex flex-col lg:flex-row gap-6">
-              <div className="w-full lg:w-[280px] xl:w-[300px] flex-shrink-0 space-y-2">
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="w-full md:w-[280px] lg:w-[310px] xl:w-[340px] flex-shrink-0 space-y-2">
                 {Array.from({ length: 8 }, (_, i) => (
                   <div key={i} className="h-14 rounded-xl bg-dark-100 animate-pulse" />
                 ))}
@@ -345,17 +477,16 @@ export default function ShopBySubcategory({ showAll = false }: ShopBySubcategory
                 return (
                   <Link
                     key={subcategory.id}
-                    href={href}
+                    to={href}
                     className="group overflow-hidden rounded-2xl bg-white border border-dark-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_28px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 flex flex-col"
                   >
                     <div className="relative h-36 w-full overflow-hidden bg-dark-100">
                       {subcategory.imageUrl ? (
-                        <Image
+                        <img
                           src={subcategory.imageUrl}
                           alt={subcategory.name}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                          className="object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                          className="h-full w-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
                       ) : (
                         <div className="h-full w-full bg-dark-100" />

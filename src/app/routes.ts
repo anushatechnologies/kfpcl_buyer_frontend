@@ -17,6 +17,7 @@ import { ReferralRedirect } from "./pages/ReferralRedirect";
 import { LoginPage } from "./pages/LoginPage";
 import { Notifications } from "./pages/Notifications";
 import { RFQPage } from "./pages/RFQPage";
+import { Subcategories } from "./pages/Subcategories";
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Home },
       { path: "shop", Component: Shop },
+      { path: "subcategories", Component: Subcategories },
       { path: "category/:slug", Component: Category },
       { path: "product/:slug", Component: Product },
       { path: "products/:slug", Component: Product },

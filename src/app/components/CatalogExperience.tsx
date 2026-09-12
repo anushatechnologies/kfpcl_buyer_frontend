@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Link, useSearchParams } from "react-router";
 import {
   ArrowRight,
+  ChevronDown,
   ChevronRight,
   Grid3X3,
   Layers,
@@ -74,6 +75,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
   const [allShopProducts, setAllShopProducts] = useState<Product[]>([]);
   const [shopProductsLoading, setShopProductsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showMobileSubList, setShowMobileSubList] = useState(false);
   const [subSearch, setSubSearch] = useState("");
 
   const activeCategoryId =
@@ -460,9 +462,111 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
             )}
           </div>
 
-          {/* ── Mobile Subcategory Pills (visible on < lg) ── */}
+          {/* ── Mobile Subcategory Section (visible on < md) ── */}
           {currentCategory && (subcategoriesLoading || subcategories.length > 0) && (
-            <div className="lg:hidden mb-5">
+            <div className="md:hidden mb-5">
+              {/* Active & Toggle Bar */}
+              <div className="flex items-center justify-between gap-2 mb-2.5 p-2.5 rounded-xl bg-white border border-[#E2E8F0] shadow-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-7 w-7 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] flex items-center justify-center text-[#065F46] flex-shrink-0">
+                    <Layers className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider">Subcategory</p>
+                    <p className="text-xs font-bold text-[#0F172A] truncate">
+                      {activeSubcategoryName || `All ${currentCategory.name}`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileSubList((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] text-xs font-bold transition-colors hover:bg-[#D1FAE5] flex-shrink-0"
+                >
+                  <span>{showMobileSubList ? "Hide List" : `All (${subcategories.length})`}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showMobileSubList ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {/* Expandable Mobile Subcategories List: shows all subcategories clearly without cutting off */}
+              {showMobileSubList && (
+                <div className="mb-3 rounded-2xl bg-white border border-[#E2E8F0] shadow-xs p-3 animate-fade-in">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E2E8F0]">
+                    <span className="text-xs font-bold text-[#0F172A]">All Available Subcategories ({subcategories.length})</span>
+                    {activeSubCategoryId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateParams({ sub: null });
+                          setShowMobileSubList(false);
+                        }}
+                        className="text-[11px] font-bold text-[#065F46] hover:underline"
+                      >
+                        Reset to All
+                      </button>
+                    )}
+                  </div>
+                  {subcategories.length > 3 && (
+                    <div className="relative mb-2">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#94A3B8] pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search subcategories..."
+                        value={subSearch}
+                        onChange={(e) => setSubSearch(e.target.value)}
+                        className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] placeholder:text-[#94A3B8] text-[#0F172A] focus:outline-none focus:border-[#059669]"
+                      />
+                    </div>
+                  )}
+                  <div className="max-h-64 overflow-y-auto divide-y divide-[#F1F5F9]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateParams({ sub: null });
+                        setShowMobileSubList(false);
+                      }}
+                      className={`w-full flex items-center justify-between py-2 px-2 rounded-lg text-left text-xs ${
+                        !activeSubCategoryId ? "bg-[#ECFDF5] text-[#065F46] font-bold" : "text-[#334155] hover:bg-[#F8FAFC]"
+                      }`}
+                    >
+                      <span className="break-words">All {currentCategory.name}</span>
+                      <span className="text-[11px] text-[#64748B] font-semibold">{relatedProducts.length}</span>
+                    </button>
+                    {filteredSubcategories.map((sub) => {
+                      const isActive = activeSubCategoryId === sub.id;
+                      const count = subcategoryCounts[sub.id] || 0;
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => {
+                            updateParams({ sub: String(sub.id) });
+                            setShowMobileSubList(false);
+                          }}
+                          className={`w-full flex items-center justify-between py-2 px-2 rounded-lg text-left text-xs transition-colors ${
+                            isActive ? "bg-[#ECFDF5] text-[#065F46] font-bold" : "text-[#334155] hover:bg-[#F8FAFC]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                            {sub.imageUrl ? (
+                              <img
+                                src={sub.imageUrl}
+                                alt=""
+                                className="h-5 w-5 rounded object-cover flex-shrink-0"
+                                onError={(e) => { e.currentTarget.style.display = "none"; }}
+                              />
+                            ) : null}
+                            <span className="leading-snug break-words">{sub.name}</span>
+                          </div>
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-[#F1F5F9] text-[#64748B] flex-shrink-0 font-semibold">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick horizontal swipe pills */}
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {subcategoriesLoading ? (
                   <>
@@ -514,7 +618,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                               {sub.name.charAt(0)}
                             </div>
                           )}
-                          <span>{sub.name}</span>
+                          <span className="whitespace-nowrap">{sub.name}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
                             isActive ? 'bg-white/20 text-white' : 'bg-[#F1F5F9] text-[#64748B]'
                           }`}>
@@ -529,15 +633,15 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
             </div>
           )}
 
-          {/* ── Main layout: Vertical Sidebar (lg+) + Products Area ── */}
-          <div className="flex gap-6 items-start">
+          {/* ── Main layout: Vertical Sidebar (desktop + tablet md+) + Products Area ── */}
+          <div className="flex flex-col md:flex-row gap-6 items-stretch min-h-[calc(100vh-180px)]">
 
-            {/* ── FULLY VERTICAL SIDEBAR (desktop/tablet ≥ lg) ── */}
+            {/* ── FULLY VERTICAL SIDEBAR: Expands vertically to bottom of page (tablet & desktop) ── */}
             {currentCategory && (subcategoriesLoading || subcategories.length > 0) && (
-              <aside className="hidden lg:flex flex-col w-72 xl:w-80 flex-shrink-0 sticky top-[80px] self-start">
-                <div className="rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col overflow-hidden">
+              <aside className="hidden md:flex flex-col w-72 lg:w-80 xl:w-84 flex-shrink-0 md:self-stretch">
+                <div className="rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex flex-col flex-1 h-full md:sticky md:top-[80px] md:max-h-[calc(100vh-100px)] overflow-hidden">
                   {/* Sidebar header */}
-                  <div className="p-4 border-b border-[#E2E8F0] bg-[#FAFAFA]">
+                  <div className="p-4 border-b border-[#E2E8F0] bg-[#FAFAFA] flex-shrink-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="h-8 w-8 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] flex items-center justify-center text-[#065F46]">
@@ -572,15 +676,24 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                           placeholder="Search subcategories..."
                           value={subSearch}
                           onChange={(e) => setSubSearch(e.target.value)}
-                          className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[#E2E8F0] bg-white placeholder:text-[#94A3B8] text-[#0F172A] focus:outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] transition-colors"
+                          className="w-full text-xs pl-8 pr-7 py-1.5 rounded-lg border border-[#E2E8F0] bg-white placeholder:text-[#94A3B8] text-[#0F172A] focus:outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] transition-colors"
                         />
+                        {subSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setSubSearch("")}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#0F172A]"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
 
                   {subcategoriesLoading ? (
-                    <div className="p-4 space-y-2">
-                      {[1, 2, 3, 4].map((i) => (
+                    <div className="p-4 space-y-2 flex-1">
+                      {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div key={i} className="flex items-center gap-3 py-2.5 px-2">
                           <div className="h-8 w-8 rounded-lg bg-[#F1F5F9] animate-pulse flex-shrink-0" />
                           <div className="h-4 flex-1 rounded bg-[#F1F5F9] animate-pulse" />
@@ -588,7 +701,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                       ))}
                     </div>
                   ) : (
-                    <nav className="p-2 space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto">
+                    <nav className="p-2 space-y-1 flex-1 overflow-y-auto overscroll-contain">
                       {/* "All" option */}
                       <button
                         type="button"
@@ -604,7 +717,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                         }`}>
                           <LayoutGrid className="h-4 w-4" />
                         </div>
-                        <span className="text-xs sm:text-[13px] flex-1 truncate">
+                        <span className="text-xs sm:text-[13px] font-semibold flex-1 leading-snug break-words">
                           All {currentCategory.name}
                         </span>
                         <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
@@ -616,7 +729,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
 
                       {/* Subcategory list */}
                       {filteredSubcategories.length === 0 ? (
-                        <div className="py-6 px-3 text-center text-xs text-[#94A3B8]">
+                        <div className="py-8 px-3 text-center text-xs text-[#94A3B8]">
                           No subcategories match "{subSearch}"
                         </div>
                       ) : (
@@ -658,7 +771,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                                 </span>
                               </div>
 
-                              <span className="text-xs sm:text-[13px] flex-1 truncate">
+                              <span className="text-xs sm:text-[13px] font-semibold text-[#0F172A] flex-1 leading-snug break-words">
                                 {sub.name}
                               </span>
 
@@ -674,8 +787,13 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                     </nav>
                   )}
 
+                  {/* Sidebar count status */}
+                  <div className="px-3.5 py-2 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#64748B] font-medium flex-shrink-0">
+                    <span>Showing {filteredSubcategories.length} of {subcategories.length} subcategories</span>
+                  </div>
+
                   {/* Bottom B2B RFQ Banner */}
-                  <div className="p-4 border-t border-[#E2E8F0] bg-[#FAFAFA] mt-auto">
+                  <div className="p-3.5 border-t border-[#E2E8F0] bg-[#FAFAFA] flex-shrink-0">
                     <div className="flex items-start gap-2.5 mb-2">
                       <div className="p-1.5 rounded-md bg-[#065F46] text-white flex-shrink-0 mt-0.5">
                         <Package className="h-3.5 w-3.5" />
@@ -689,7 +807,7 @@ export function CatalogExperience({ fixedCategoryId, categorySlug, title, subtit
                     </div>
                     <Link
                       to="/rfq"
-                      className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#065F46] hover:bg-[#047857] text-white text-xs font-semibold shadow-xs transition-colors"
+                      className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#065F46] hover:bg-[#047857] text-white text-xs font-semibold shadow-xs transition-colors"
                     >
                       Post Buy Requirement (RFQ)
                       <ArrowRight className="h-3 w-3" />
