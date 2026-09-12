@@ -223,7 +223,7 @@ export const buildProductWhatsAppUrl = (
   sellingPrice?: number,
 ): string => {
   const supplierNumber = getSupplierWhatsAppNumber(product);
-  const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://kfpcl-exports.com";
+  const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://kfpclexports.com";
   const productUrl = `${origin}${getProductHref(product)}`;
   const packInfo = product.primaryVariant?.name ? ` (${product.primaryVariant.name})` : "";
   const storeName = product.store?.name || product.storeName;
