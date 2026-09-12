@@ -93,9 +93,21 @@ const mapNotification = (item: NotificationItem): Notification => {
     type,
     title: item.title,
     body: item.body,
-    time: item.createdAt
-      ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : 'Recent',
+    time: (() => {
+      if (!item.createdAt) return 'Recent';
+      const raw = String(item.createdAt).trim();
+      if (raw.includes(' AM') || raw.includes(' PM') || /^[0-9]{1,2}:[0-9]{2}/.test(raw)) {
+        return raw;
+      }
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return raw;
+      return d.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata',
+      });
+    })(),
     read: item.read,
     icon,
     targetPath: item.targetPath,

@@ -52,6 +52,7 @@ export function AuthModal() {
   // Business registration form fields
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [businessType, setBusinessType] = useState(BUSINESS_TYPES[0]);
   const [state, setState] = useState("Telangana");
@@ -283,7 +284,21 @@ export function AuthModal() {
       systemApi.saveFcmToken(`web-${Date.now()}`).catch(() => {});
       closeModal();
     } catch (err: any) {
-      const msg = err?.message || "Registration failed. Please check details.";
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.data?.message ||
+        err?.message ||
+        "Registration failed. Please check details.";
+
+      if (
+        msg.toLowerCase().includes("email") ||
+        msg.toLowerCase().includes("already registered") ||
+        msg.toLowerCase().includes("different email")
+      ) {
+        setEmailError(msg);
+      }
+
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
@@ -518,12 +533,25 @@ export function AuthModal() {
                       type="email"
                       required
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError("");
+                      }}
                       placeholder="buyer@agrotrade.com"
-                      className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-gray-300 focus:border-[#0A4D3C] outline-none"
+                      className={`w-full pl-8 pr-3 py-2 text-xs rounded-xl border ${
+                        emailError
+                          ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-400"
+                          : "border-gray-300 focus:border-[#0A4D3C]"
+                      } outline-none`}
                     />
                     <Mail className="absolute left-2.5 h-3.5 w-3.5 text-gray-400" />
                   </div>
+                  {emailError && (
+                    <p className="mt-1 text-[11px] text-red-600 font-medium flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                      <span>{emailError}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>

@@ -29,6 +29,7 @@ import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@/api/auth.api';
 import AuthBackground from '@/components/layout/AuthBackground';
 import { getCitiesForState, fetchCitiesForState } from '@/data/indianStatesCities';
+import { toast } from 'sonner';
 
 /* ──────────────────────────── REGISTRATION DATA LISTS ──────────────────────────── */
 
@@ -140,6 +141,7 @@ export default function RegisterClient() {
     register,
     handleSubmit,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<RegistrationFormData>({
@@ -338,10 +340,26 @@ export default function RegisterClient() {
         err?.message ||
         'Registration failed. Please check your details and try again.';
 
-      if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exist')) {
-        setSubmitError('An account with this mobile number or email already exists. Please sign in instead.');
+      const isEmailDuplicate =
+        msg.toLowerCase().includes('email') &&
+        (msg.toLowerCase().includes('already registered') ||
+         msg.toLowerCase().includes('try a different email') ||
+         msg.toLowerCase().includes('already exists') ||
+         msg.toLowerCase().includes('duplicate'));
+
+      if (isEmailDuplicate) {
+        setError('email', { type: 'manual', message: msg });
+        setSubmitError(msg);
+        toast.error(msg);
+      } else if (msg.toLowerCase().includes('phone') || msg.toLowerCase().includes('mobile')) {
+        setError('mobileNumber', { type: 'manual', message: msg });
+        setSubmitError(msg);
+        toast.error(msg);
+      } else if (err?.response?.status === 400 || msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exist')) {
+        setSubmitError(msg);
+        toast.error(msg);
       } else {
-        // Fallback gracefully for local dev session
+        // Fallback gracefully only for local offline dev missing endpoints
         const panImageUrl = panPreview || (panFile ? URL.createObjectURL(panFile) : '');
         setUser(
           {

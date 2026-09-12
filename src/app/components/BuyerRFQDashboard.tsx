@@ -46,13 +46,24 @@ const formatStatus = (status?: string) => {
 
 const formatDate = (value?: string) => {
   if (!value) return "Recently";
-  const date = new Date(value);
+  const trimmed = String(value).trim();
+  // If already formatted in IST (e.g. "12 Sep 2026, 11:08 AM" or "12 Sep 2026")
+  if (
+    trimmed.includes(" AM") ||
+    trimmed.includes(" PM") ||
+    /^[0-9]{1,2}\s+[A-Za-z]{3}/.test(trimmed) ||
+    /^[A-Za-z]{3}\s+[0-9]{1,2}/.test(trimmed)
+  ) {
+    return trimmed;
+  }
+  const date = new Date(trimmed);
   return Number.isNaN(date.getTime())
-    ? "Recently"
+    ? trimmed
     : new Intl.DateTimeFormat("en-IN", {
         day: "numeric",
         month: "short",
         year: "numeric",
+        timeZone: "Asia/Kolkata",
       }).format(date);
 };
 
@@ -353,7 +364,14 @@ export function BuyerRFQDashboard({ onAdminReplyView }: BuyerRFQDashboardProps) 
 
               return (
                 <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Admin quotation</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Admin quotation</p>
+                    {quotation?.createdAt && (
+                      <span className="text-[11px] font-medium text-blue-600">
+                        {formatDate(quotation.createdAt)}
+                      </span>
+                    )}
+                  </div>
 
                   {/* Unit price row */}
                   <div className="mt-3 flex items-end justify-between gap-3">

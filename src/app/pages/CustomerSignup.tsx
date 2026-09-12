@@ -409,8 +409,24 @@ export function CustomerSignup() {
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.data?.message ||
         err?.message ||
         "Registration failed. Please check your information and try again.";
+
+      // If backend returned duplicate email error (e.g. "Email address '...' is already registered")
+      const isEmailError =
+        msg.toLowerCase().includes("email") ||
+        msg.toLowerCase().includes("already registered") ||
+        msg.toLowerCase().includes("try a different email");
+
+      if (isEmailError) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: msg,
+        }));
+      }
+
       setErrorMessage(msg);
       toast.error(msg);
     } finally {

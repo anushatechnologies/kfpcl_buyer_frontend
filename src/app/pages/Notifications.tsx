@@ -79,10 +79,27 @@ function NotifTypeIcon({ type, className }: { type: NotifType; className?: strin
 
 function formatTime(iso: string): string {
   if (!iso) return 'Recent';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return 'Recent';
+  const trimmed = String(iso).trim();
 
-  const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  // If backend already returns a formatted IST date/time string (e.g. "12 Sep 2026, 11:08 AM" or "11:08 AM")
+  if (
+    trimmed.includes(' AM') ||
+    trimmed.includes(' PM') ||
+    /^[0-9]{1,2}\s+[A-Za-z]{3}/.test(trimmed) ||
+    /^[A-Za-z]{3}\s+[0-9]{1,2}/.test(trimmed)
+  ) {
+    return trimmed;
+  }
+
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return trimmed; // Display returned string directly without conversion
+
+  const timeStr = d.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  });
   const now = new Date();
 
   const isToday =
@@ -107,6 +124,7 @@ function formatTime(iso: string): string {
   const dateStr = d.toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'short',
+    timeZone: 'Asia/Kolkata',
     ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
   });
 

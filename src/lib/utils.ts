@@ -18,11 +18,53 @@ export function formatCurrency(
 }
 
 export function formatDate(dateString: string): string {
+  if (!dateString) return '';
+  const trimmed = String(dateString).trim();
+  // If string is already formatted in IST (e.g. "12 Sep 2026", "12 Sep 2026, 11:08 AM", "11:08 AM")
+  if (
+    trimmed.includes(' AM') ||
+    trimmed.includes(' PM') ||
+    /^[0-9]{1,2}\s+[A-Za-z]{3}/.test(trimmed) ||
+    /^[A-Za-z]{3}\s+[0-9]{1,2}/.test(trimmed)
+  ) {
+    return trimmed;
+  }
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return trimmed;
   return new Intl.DateTimeFormat('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }).format(new Date(dateString));
+    timeZone: 'Asia/Kolkata',
+  }).format(d);
+}
+
+/**
+ * Direct IST Date & Time display for Notifications & Quotations.
+ * The backend now generates and returns all notification and quote timestamps
+ * in Indian Standard Time (IST / Asia/Kolkata). Display directly without extra timezone offset.
+ */
+export function formatISTDateTime(dateString?: string): string {
+  if (!dateString) return 'Recent';
+  const trimmed = String(dateString).trim();
+  if (
+    trimmed.includes(' AM') ||
+    trimmed.includes(' PM') ||
+    /^[0-9]{1,2}\s+[A-Za-z]{3}/.test(trimmed)
+  ) {
+    return trimmed;
+  }
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return trimmed;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  }).format(d);
 }
 
 export function formatRelativeTime(dateString: string): string {

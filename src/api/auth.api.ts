@@ -361,13 +361,44 @@ export const authApi = {
    */
   signup: async (payload: SignupPayload): Promise<AuthResponse> => {
     const cleanPhone = (payload.phoneNumber || '').replace(/\D/g, '').slice(-10);
+    const body = {
+      ...payload,
+      phoneNumber: cleanPhone,
+      mobileNumber: cleanPhone,
+      phone: cleanPhone,
+    };
+
+    let response: any;
     try {
-      const response = await apiClient.post<any>('/api/auth/signup', {
-        ...payload,
-        phoneNumber: cleanPhone,
-      });
+      // 1. Try Web Buyer Registration Endpoint: POST /api/v1/buyer/auth/register
+      try {
+        response = await apiClient.post<any>('/api/v1/buyer/auth/register', body);
+      } catch (err1: any) {
+        if (err1?.response?.status === 400) {
+          throw err1; // Duplicate email or validation error -> propagate directly
+        }
+        if (err1?.response?.status === 404 || !err1?.response) {
+          // 2. Try Mobile Signup Endpoint: POST /api/v1/auth/signup
+          try {
+            response = await apiClient.post<any>('/api/v1/auth/signup', body);
+          } catch (err2: any) {
+            if (err2?.response?.status === 400) {
+              throw err2;
+            }
+            if (err2?.response?.status === 404 || !err2?.response) {
+              // 3. Try legacy /api/auth/signup
+              response = await apiClient.post<any>('/api/auth/signup', body);
+            } else {
+              throw err2;
+            }
+          }
+        } else {
+          throw err1;
+        }
+      }
+
       const data = response.data?.data || response.data;
-      const accessToken = data?.accessToken || '';
+      const accessToken = data?.accessToken || data?.token || '';
       return {
         accessToken,
         token: accessToken,
@@ -375,6 +406,19 @@ export const authApi = {
         user: data?.user,
       };
     } catch (err: any) {
+      // Catch HTTP 400 Bad Request error (e.g. duplicate email)
+      const backendMessage =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.data?.message;
+
+      if (err?.response?.status === 400 && backendMessage) {
+        const customErr: any = new Error(backendMessage);
+        customErr.response = err.response;
+        customErr.status = 400;
+        throw customErr;
+      }
+
       if (isMissingEndpointError(err)) {
         const accessToken = `buyer_token_${cleanPhone}_${Date.now()}`;
         const refreshToken = `buyer_refresh_${cleanPhone}_${Date.now()}`;

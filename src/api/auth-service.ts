@@ -269,11 +269,30 @@ export async function submitBuyerRegistration(formValues: BuyerRegistrationFormV
     formData.append("gstinPhoto", formValues.gstinPhotoFile); // File object
   }
 
-  const response = await axios.post(`${BACKEND_BASE_URL}/api/v1/register`, formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
+  let response: any;
+  try {
+    // Primary Web buyer registration endpoint: POST /api/v1/buyer/auth/register
+    response = await axios.post(`${BACKEND_BASE_URL}/api/v1/buyer/auth/register`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  } catch (err: any) {
+    // If backend returned HTTP 400 (e.g. duplicate email), immediately propagate error
+    if (err?.response?.status === 400) {
+      throw err;
+    }
+    // If 404, fallback to legacy /api/v1/register
+    if (err?.response?.status === 404 || !err?.response) {
+      response = await axios.post(`${BACKEND_BASE_URL}/api/v1/register`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+    } else {
+      throw err;
+    }
+  }
 
   return response.data;
 }
