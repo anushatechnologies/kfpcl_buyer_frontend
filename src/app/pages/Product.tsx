@@ -545,6 +545,18 @@ export function Product() {
               <span className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wider truncate">Eco Friendly</span>
             </div>
           </div>
+
+          {/* Recommended products — placed directly below product image to fill left column */}
+          {relatedProducts.length > 0 ? (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <h2 className="text-sm font-black text-[#0A4D3C] tracking-tight mb-3">Recommended add-ons</h2>
+              <div className="grid gap-3 grid-cols-2">
+                {relatedProducts.slice(0, 4).map((relatedProduct) => (
+                  <ProductCard key={`${relatedProduct.id}-${relatedProduct.primaryVariant?.id || 'primary'}`} product={relatedProduct} />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -957,19 +969,6 @@ export function Product() {
         </div>
       </div>
 
-      {relatedProducts.length > 0 ? (
-        <section className="mt-6 border-t border-gray-100 pt-6">
-          <div className="mb-6">
-            <h2 className="text-xl font-black text-[#0A4D3C] tracking-tight">Recommended add-ons</h2>
-            <p className="mt-1 text-sm text-[#7C9A90] font-semibold">Products commonly purchased together.</p>
-          </div>
-          <div className="grid gap-3 sm:gap-6 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {relatedProducts.map((relatedProduct) => (
-              <ProductCard key={`${relatedProduct.id}-${relatedProduct.primaryVariant?.id || "primary"}`} product={relatedProduct} />
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       {/* Ratings & Advanced Reviews Section (Directly on canvas, clean 2-column) */}
       <motion.section 
