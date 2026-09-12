@@ -534,12 +534,12 @@ export default function Navbar() {
       <div className="lg:hidden">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6">
           {/* Logo (Mobile) */}
-          <Link href="/" className="flex-shrink-0 flex items-center gap-2 group">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-600 to-brand-700 flex items-center justify-center shadow-sm">
+          <Link href="/" className="flex-shrink-0 flex items-center gap-2 group min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-600 to-brand-700 flex items-center justify-center shadow-sm flex-shrink-0">
               <Globe className="h-4 w-4 text-white" />
             </div>
-            <div className="flex flex-col justify-center">
-              <span className="block text-xs font-bold font-display text-dark-900 leading-tight">
+            <div className="hidden sm:flex flex-col justify-center min-w-0">
+              <span className="block text-xs font-bold font-display text-dark-900 leading-tight truncate">
                 Karthikeya Farmer Producer
               </span>
               <span className="block text-[10px] font-semibold text-brand-700 leading-none">
@@ -549,8 +549,8 @@ export default function Navbar() {
           </Link>
 
 
-          {/* Right Mobile Actions */}
-          <div className="flex items-center gap-3">
+          {/* Right Mobile Actions — flex-shrink-0 ensures icons are never hidden or clipped */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => router.push('/products')}
               aria-label="Search products"
@@ -558,30 +558,33 @@ export default function Navbar() {
             >
               <Search className="h-5 w-5" />
             </button>
+            {/* Notification Bell — always visible, navigates to /notifications on mobile */}
             <button
               type="button"
               onClick={() => router.push('/notifications')}
               aria-label="Notifications"
-              className="relative p-2 text-dark-600 hover:bg-dark-50 rounded-full transition-colors"
+              className="relative p-2 text-dark-600 hover:bg-dark-50 rounded-full transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
             >
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full border border-white bg-accent-500" />
+                <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-red-500 text-[9px] font-black text-white leading-none z-10">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
               )}
             </button>
             <Link
               href="/cart"
-              className="relative p-2 text-dark-600 hover:bg-dark-50 rounded-full transition-colors"
+              className="relative p-2 text-dark-600 hover:bg-dark-50 rounded-full transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
             >
               <ShoppingCart className="h-5 w-5" />
               {itemCount > 0 && (
-                <span className="absolute top-0 right-0 h-4 w-4 flex items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white shadow-sm">
+                <span className="absolute top-0.5 right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white shadow-sm z-10">
                   {itemCount > 9 ? '9+' : itemCount}
                 </span>
               )}
             </Link>
             <button
-              className="p-2 text-dark-900 hover:bg-dark-50 rounded-lg transition-colors ml-1"
+              className="p-2 text-dark-900 hover:bg-dark-50 rounded-lg transition-colors"
               onClick={() => setMobileOpen((v) => !v)}
             >
               {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
