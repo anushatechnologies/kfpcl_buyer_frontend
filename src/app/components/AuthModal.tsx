@@ -20,7 +20,6 @@ import { checkPhoneStatus, sendRealSmsOtp, verifyOtpAndLogin, resetRecaptchaVeri
 import { systemApi } from "@/api/system.api";
 import { useAuthStore } from "../store/authStore";
 import { useAuthStore as useLegacyAuthStore } from "@/store/authStore";
-import { HAS_FIREBASE_CONFIG } from "@/app/lib/config";
 import { writeStoredSession } from "@/app/lib/session";
 
 const BUSINESS_TYPES = [
@@ -351,16 +350,6 @@ export function AuthModal() {
                 {step === "otp" && `Enter the 6-digit code sent to +91 ${phoneNumber}`}
                 {step === "details" && "Enter your trade credentials for verified wholesale access"}
               </p>
-              {/* Firebase badge */}
-              {HAS_FIREBASE_CONFIG && step !== "details" && (
-                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200 px-2.5 py-0.5">
-                  <svg className="h-3 w-3 text-orange-500" viewBox="0 0 48 48" fill="currentColor">
-                    <path d="M8 37L17.1 6.1c.3-1.1 1.8-1.3 2.4-.3L24 13l2.8-5.2c.6-1.1 2.2-.9 2.5.3L38 37H8z" opacity=".5"/>
-                    <path d="M8 37l9.1-17 6.9 11-4 6H8zm30 0L28.5 13.8 24 21l7.1 10.8L38 37z"/>
-                  </svg>
-                  <span className="text-[10px] font-semibold text-orange-600">Secured by Firebase</span>
-                </div>
-              )}
             </div>
 
             {/* Error Message */}
