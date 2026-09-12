@@ -197,16 +197,24 @@ export default function Navbar() {
   }, [user?.id, user?.role]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setNotifications([]);
-      setRfqReplyAlert(null);
-      return;
-    }
-
     loadNotifications();
     const intervalId = window.setInterval(loadNotifications, 30000);
     return () => window.clearInterval(intervalId);
-  }, [isAuthenticated, loadNotifications]);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const handleNotificationUpdate = () => {
+      loadNotifications();
+    };
+    window.addEventListener('kfpcl:notifications-updated', handleNotificationUpdate);
+    return () => window.removeEventListener('kfpcl:notifications-updated', handleNotificationUpdate);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setRfqReplyAlert(null);
+    }
+  }, [isAuthenticated]);
 
   // Close notification dropdown on outside click
   useEffect(() => {
@@ -603,11 +611,33 @@ export default function Navbar() {
                 setMobileOpen(false);
                 handleSellClick();
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-base font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 transition-colors mb-4 cursor-pointer text-left focus:outline-none border-0"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-base font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 transition-colors mb-2 cursor-pointer text-left focus:outline-none border-0"
             >
               <Building2 className="h-5 w-5" />
               Sell on KFPCL
             </button>
+
+            {/* Notifications Link */}
+            <Link
+              href="/notifications"
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                'flex items-center justify-between w-full py-3.5 px-4 rounded-xl border text-base font-semibold transition-colors mb-4',
+                pathname === '/notifications'
+                  ? 'border-brand-600 bg-brand-50 text-brand-700'
+                  : 'border-dark-200 text-dark-800 hover:bg-dark-50'
+              )}
+            >
+              <div className="flex items-center gap-2.5">
+                <Bell className="h-5 w-5 text-dark-600" />
+                <span>Notifications</span>
+              </div>
+              {unreadCount > 0 && (
+                <span className="flex h-5 min-w-[20px] px-1.5 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white leading-none">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
 
             {/* Auth Actions */}
             {!isAuthenticated ? (

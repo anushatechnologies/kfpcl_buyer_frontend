@@ -10,7 +10,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { notificationsApi, NotificationItem } from '@/api/notifications.api';
-import { formatDate } from '@/lib/utils';
+import { formatISTDateTime } from '@/lib/utils';
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -26,6 +26,14 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const handleNotificationUpdate = () => {
+      loadNotifications();
+    };
+    window.addEventListener('kfpcl:notifications-updated', handleNotificationUpdate);
+    return () => window.removeEventListener('kfpcl:notifications-updated', handleNotificationUpdate);
   }, [loadNotifications]);
 
   const markRead = async (notification: NotificationItem) => {
@@ -125,7 +133,7 @@ export default function NotificationsPage() {
                     </span>
                     <span className="inline-flex items-center gap-1 text-[11px] text-dark-400">
                       <Clock className="h-3 w-3" />
-                      {formatDate(notification.createdAt)}
+                      {formatISTDateTime(notification.createdAt)}
                     </span>
                   </span>
                   <span className="mt-1 block text-sm leading-relaxed text-dark-600">{notification.body}</span>
