@@ -24,13 +24,6 @@ const contactCards = [
     extra: "Hyderabad, Telangana",
     accent: "#059669",
   },
-  {
-    icon: ShieldCheck,
-    title: "Customer care",
-    detail: "Order help, delivery updates, and account support",
-    extra: "Available for everyday shopping assistance",
-    accent: "#D4A853",
-  },
 ];
 
 export function Contact() {
@@ -102,60 +95,7 @@ export function Contact() {
         ))}
       </section>
 
-      {/* Support Details */}
-      <section className="mt-10 grid gap-8 xl:grid-cols-[1fr_1fr]">
-        <motion.article
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-          className="group relative overflow-hidden rounded-[2.2rem] border border-[#E2E8F0] bg-[linear-gradient(180deg,#FAFBFD,#EEF2F7)] p-7 shadow-[0_24px_46px_rgba(10,22,40,0.06)]"
-        >
-          <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(30,90,250,0.06),transparent_70%)] transition-transform duration-700 group-hover:scale-150" />
 
-          <div className="relative">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
-                <ShoppingBag className="h-6 w-6 text-[#1E5AFA]" />
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-[0.22em] text-[#6B7B94]">Customer journey</div>
-                <h2 className="section-title">Support during checkout</h2>
-              </div>
-            </div>
-            <ul className="mt-6 space-y-4 text-sm leading-7 text-[#6B7B94]">
-              <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1E5AFA]" />Help customers sign in with OTP when they want to continue to checkout.</li>
-              <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1E5AFA]" />Confirm address details and browser location if address validation fails.</li>
-              <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1E5AFA]" />Guide shoppers through COD or online payment based on available checkout options.</li>
-            </ul>
-          </div>
-        </motion.article>
-
-        <motion.article
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.7, duration: 0.5 }}
-          className="group relative overflow-hidden rounded-[2.2rem] border border-[#E2E8F0]/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,253,0.98))] p-7 shadow-[0_25px_60px_rgba(10,22,40,0.06)]"
-        >
-          <div className="absolute -left-12 -bottom-12 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(212,168,83,0.06),transparent_70%)] transition-transform duration-700 group-hover:scale-150" />
-
-          <div className="relative">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EBF0FF]">
-                <Truck className="h-6 w-6 text-[#1E5AFA]" />
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-[0.22em] text-[#6B7B94]">Delivery operations</div>
-                <h2 className="section-title">Support after order placement</h2>
-              </div>
-            </div>
-            <ul className="mt-6 space-y-4 text-sm leading-7 text-[#6B7B94]">
-              <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#D4A853]" />Track order status, payment updates, and saved delivery details with customers.</li>
-              <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#D4A853]" />Online payments are opened securely from the website and confirmed before fulfilment.</li>
-              <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#D4A853]" />Cash on delivery orders move straight into fulfilment after address confirmation.</li>
-            </ul>
-          </div>
-        </motion.article>
-      </section>
     </div>
   );
 }

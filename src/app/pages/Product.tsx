@@ -465,8 +465,8 @@ export function Product() {
         Continue shopping
       </Link>
 
-      {/* Unified Canvas Grid Layout (no separate border boxes for left/right halves) */}
-      <div className="mt-3.5 sm:mt-6 grid gap-6 sm:gap-10 md:grid-cols-2 items-start relative overflow-hidden">
+      {/* Product Layout: single column on mobile, 2-col on desktop */}
+      <div className="mt-3.5 sm:mt-6 md:grid md:gap-10 md:grid-cols-2 md:items-start relative">
         {/* Animated background blobs (strictly contained to prevent horizontal scroll) */}
         <div className="absolute top-20 -left-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(10,77,60,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDuration: '4s' }} />
         <div className="absolute bottom-20 -right-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(212,168,83,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDelay: "1.5s", animationDuration: '4s' }} />
@@ -501,9 +501,10 @@ export function Product() {
                 </div>
               )}
 
-              {/* Main Zoom Frame on Right */}
+              {/* Main image — full width on mobile, no cropping */}
               <div
-                className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#FAF8F5]/80 flex items-center justify-center border border-gray-150/40 cursor-zoom-in group/zoom aspect-square w-full max-h-[290px] xs:max-h-[330px] sm:max-h-[420px] md:max-h-none flex-1 shadow-[0_8px_30px_rgba(0,0,0,0.02)]"
+                className="relative overflow-hidden rounded-2xl bg-[#FAF8F5]/80 flex items-center justify-center border border-gray-150/40 cursor-zoom-in group/zoom w-full flex-1 shadow-[0_8px_30px_rgba(0,0,0,0.02)]"
+                style={{ aspectRatio: '1 / 1', maxHeight: 'none' }}
                 onMouseMove={handleMouseMove}
                 onMouseEnter={() => setIsZooming(true)}
                 onMouseLeave={() => setIsZooming(false)}
@@ -560,8 +561,8 @@ export function Product() {
         </div>
       </div>
 
-      {/* Right Side: Product details column (Clean vertical alignment) */}
-      <div className="space-y-5 md:pl-2">
+      {/* Product details column — flows below image on mobile, beside on desktop */}
+      <div className="space-y-5 md:pl-2 mt-5 md:mt-0">
         {/* Header Row */}
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4 flex-wrap">
