@@ -592,8 +592,12 @@ export const getBanners = async (): Promise<Banner[]> => {
 
 export const getCategories = async () => {
   try {
+    // 1. Try buyer endpoint first (used for display, but lacks discount field)
+    let list: any[] = [];
     let data = await apiRequest<any>("/api/buyer/categories");
-    let list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : Array.isArray(data?.data) ? data.data : [];
+    let buyerList = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : Array.isArray(data?.data) ? data.data : [];
+    if (buyerList.length > 0) list = buyerList;
+
     if (list.length === 0) {
       try {
         const altData = await apiRequest<any>("/api/categories");
@@ -601,14 +605,43 @@ export const getCategories = async () => {
         if (altList.length > 0) list = altList;
       } catch {}
     }
-    if (list.length === 0) {
-      try {
-        const adminData = await apiRequest<any>("/api/admin/categories");
-        const adminList = Array.isArray(adminData) ? adminData : Array.isArray(adminData?.content) ? adminData.content : [];
-        if (adminList.length > 0) list = adminList;
-      } catch {}
-    }
-    return list.map(mapCategory).filter((item) => item.isActive !== false);
+
+    // 2. Always fetch admin categories to get the discount field (buyer endpoint omits it)
+    let adminDiscountMap: Record<number, number> = {};
+    try {
+      const adminData = await apiRequest<any>("/api/admin/categories");
+      const adminList = Array.isArray(adminData)
+        ? adminData
+        : Array.isArray(adminData?.content)
+          ? adminData.content
+          : Array.isArray(adminData?.data)
+            ? adminData.data
+            : [];
+      for (const cat of adminList) {
+        const id = Number(cat?.id);
+        const discount = Number(cat?.discount || cat?.discountPercentage || 0);
+        if (id && discount > 0) {
+          adminDiscountMap[id] = discount;
+        }
+      }
+      // If buyer/public endpoints returned nothing, fall back to admin list
+      if (list.length === 0 && adminList.length > 0) {
+        list = adminList;
+      }
+    } catch {}
+
+    // 3. Map and merge discount from admin data
+    return list
+      .map((cat: any) => {
+        const mapped = mapCategory(cat);
+        const id = Number(cat?.id);
+        // Prefer admin discount value if available (buyer endpoint omits it)
+        if (adminDiscountMap[id] != null && adminDiscountMap[id] > 0) {
+          mapped.discount = adminDiscountMap[id];
+        }
+        return mapped;
+      })
+      .filter((item) => item.isActive !== false);
   } catch (error) {
     console.warn("Failed to fetch categories", error);
     return [];
