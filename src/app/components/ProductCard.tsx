@@ -3,8 +3,9 @@ import { FileText, ImageOff, MessageCircle, Phone, Star, Store } from "lucide-re
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import { APP_COPY } from "../lib/config";
-import { formatCurrency, getProductHref } from "../lib/storefrontUtils";
+import { buildProductWhatsAppUrl, formatCurrency, getProductHref, getSupplierWhatsAppNumber } from "../lib/storefrontUtils";
 import { useCallModalStore } from "../store/callModalStore";
+import { contactSeller } from "../data/storefrontData";
 import type { Product } from "../types/storefront";
 
 interface ProductCardProps {
@@ -25,9 +26,19 @@ export function ProductCard({ product }: ProductCardProps) {
   const primaryImage = gallery[0] || product.imageUrl;
   const secondaryImage = gallery[1] || primaryImage;
   const hasHoverImage = Boolean(gallery[1] && gallery[1] !== gallery[0]);
-  const supportPhone = APP_COPY.phonePrimary.replace(/\D/g, "");
-  const whatsappHref = `https://wa.me/${supportPhone}?text=${encodeURIComponent(`Hello, I would like to know more about ${product.name}.`)}`;
+  const supplierWhatsAppNumber = getSupplierWhatsAppNumber(product);
+  const whatsappHref = buildProductWhatsAppUrl(product, sellingPrice);
   const openCallModal = useCallModalStore((state) => state.openCallModal);
+
+  const handleWhatsAppClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.stopPropagation();
+    const supplierId = String(product.storeId || product.store?.id || "1");
+    contactSeller({
+      productId: product.id,
+      supplierId,
+      contactType: "WHATSAPP",
+    }).catch(() => {});
+  };
 
   return (
     <motion.article
@@ -166,13 +177,13 @@ export function ProductCard({ product }: ProductCardProps) {
           <div
             className="mt-2.5 sm:mt-3 grid grid-cols-2 gap-1.5"
             onClick={(e) => {
-              e.preventDefault();
               e.stopPropagation();
             }}
           >
             {/* RFQ */}
             <Link
               to={getProductHref(product)}
+              onClick={(e) => e.stopPropagation()}
               className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-[#0A4D3C] px-2 text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-[#0E5E4A] overflow-hidden"
               aria-label={`Request an RFQ for ${product.name}`}
             >
@@ -186,7 +197,7 @@ export function ProductCard({ product }: ProductCardProps) {
                 e.preventDefault();
                 e.stopPropagation();
                 openCallModal({
-                  phoneNumber: "6309981444",
+                  phoneNumber: supplierWhatsAppNumber.replace(/^91/, "") || "6309981444",
                   title: `Call for ${product.name}`,
                   subtitle: product.store?.name ? `Direct contact for ${product.name} (${product.store.name})` : `Direct contact for ${product.name}`,
                   productName: product.name,
@@ -198,12 +209,13 @@ export function ProductCard({ product }: ProductCardProps) {
               <Phone className="h-3 w-3 flex-shrink-0" />
               <span>Call</span>
             </button>
-            {/* WhatsApp — full width bottom row, never truncated */}
+            {/* WhatsApp — full width bottom row, directly opens WhatsApp chat */}
             <a
               href={whatsappHref}
               target="_blank"
-              rel="noreferrer"
-              className="col-span-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[#25D366] px-3 text-[10px] font-black text-white transition-colors hover:bg-[#1FB957]"
+              rel="noopener noreferrer"
+              onClick={handleWhatsAppClick}
+              className="col-span-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[#25D366] px-3 text-[10px] font-black text-white transition-colors hover:bg-[#1FB957] cursor-pointer"
               aria-label={`Message about ${product.name} on WhatsApp`}
             >
               <MessageCircle className="h-3.5 w-3.5 flex-shrink-0" />

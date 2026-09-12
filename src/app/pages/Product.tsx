@@ -33,8 +33,10 @@ import { APP_COPY } from "../lib/config";
 import { getDeliveryEtaText, getStockLabel, saveNotifyRequest } from "../lib/customerExperience";
 import { useCallModalStore } from "../store/callModalStore";
 import {
+  buildProductWhatsAppUrl,
   formatCurrency,
   getCategoryHref,
+  getSupplierWhatsAppNumber,
   parseProductId,
 } from "../lib/storefrontUtils";
 import { getActiveFreeItemOffers, getProductById, getProductRatings, getProducts, submitProductRating } from "../data/storefrontData";
@@ -271,8 +273,10 @@ export function Product() {
   const selectedStock = Number(selectedVariant?.stock);
   const availableStock = Number.isFinite(selectedStock) ? Math.max(0, selectedStock) : undefined;
   const selectedVariantInStock = Boolean(selectedVariant) && (availableStock === undefined || availableStock > 0);
-  const supportPhone = APP_COPY.phonePrimary.replace(/\D/g, "");
-  const whatsappHref = `https://wa.me/${supportPhone}?text=${encodeURIComponent(`Hello, I would like to know more about ${product?.name || "this product"}.`)}`;
+  const supplierWhatsAppNumber = product ? getSupplierWhatsAppNumber(product) : (APP_COPY.phonePrimary || "916309981444").replace(/\D/g, "");
+  const whatsappHref = product
+    ? buildProductWhatsAppUrl(product, sellingPrice)
+    : `https://wa.me/${supplierWhatsAppNumber}?text=${encodeURIComponent("Hello, I would like to know more about this product.")}`;
   const openCallModal = useCallModalStore((state) => state.openCallModal);
   
   const productOfferHighlights = useMemo(() => {
@@ -696,7 +700,7 @@ export function Product() {
                     type="button"
                     onClick={() => {
                       openCallModal({
-                        phoneNumber: "6309981444",
+                        phoneNumber: supplierWhatsAppNumber.replace(/^91/, "") || "6309981444",
                         title: `Call for ${product?.name || "Product Inquiry"}`,
                         subtitle: product?.store?.name ? `Direct contact for ${product.name} (Store: ${product.store.name})` : `Direct contact for ${product?.name || "KFPCL Product Inquiry"}`,
                         productName: product?.name,
@@ -710,7 +714,7 @@ export function Product() {
                   <a
                     href={whatsappHref}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#1FB957]"
                   >
                     <MessageCircle className="h-4 w-4" />

@@ -1,5 +1,5 @@
 import type { Category, CheckoutFeeBreakdown, CheckoutSettings, Product, ProductSort, Variant } from "../types/storefront";
-import { API_ORIGIN } from "./config";
+import { API_ORIGIN, APP_COPY } from "./config";
 
 export const currencyFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -162,4 +162,83 @@ export const isValidGmail = (email?: string | null): boolean => {
   if (!email) return false;
   return GMAIL_REGEX.test(email.trim());
 };
+
+/**
+ * Format a phone string into a clean international WhatsApp number (digits only, e.g. 916309981444).
+ */
+export const formatWhatsAppNumber = (phone?: string | null): string => {
+  const defaultDigits = (APP_COPY?.phonePrimary || "916309981444").replace(/\D/g, "");
+  if (!phone) {
+    return defaultDigits.length === 10 ? `91${defaultDigits}` : defaultDigits;
+  }
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) {
+    return defaultDigits.length === 10 ? `91${defaultDigits}` : defaultDigits;
+  }
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return digits;
+  }
+  if (digits.length === 11 && digits.startsWith("0")) {
+    return `91${digits.slice(1)}`;
+  }
+  if (digits.length > 10) {
+    return digits;
+  }
+  return `91${digits}`;
+};
+
+/**
+ * Extract the best available supplier or product WhatsApp contact number.
+ */
+export const getSupplierWhatsAppNumber = (product?: Partial<Product> | null): string => {
+  const rawNumber =
+    (product as any)?.whatsappNumber ||
+    (product as any)?.whatsapp ||
+    (product as any)?.sellerWhatsapp ||
+    (product as any)?.supplierWhatsapp ||
+    product?.store?.phoneNumber ||
+    (product as any)?.storePhone ||
+    (product as any)?.supplierPhone ||
+    (product as any)?.supplierPhoneNumber ||
+    (product as any)?.phoneNumber ||
+    (product as any)?.phone ||
+    (product as any)?.seller?.phoneNumber ||
+    (product as any)?.seller?.phone ||
+    (product as any)?.seller?.whatsapp ||
+    APP_COPY?.phonePrimary ||
+    "6309981444";
+
+  return formatWhatsAppNumber(rawNumber);
+};
+
+/**
+ * Build a complete wa.me URL with pre-filled enquiry message containing product name,
+ * pack size, price, supplier name, and direct product link.
+ */
+export const buildProductWhatsAppUrl = (
+  product: Pick<Product, "id" | "name"> & Partial<Product>,
+  sellingPrice?: number,
+): string => {
+  const supplierNumber = getSupplierWhatsAppNumber(product);
+  const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://kfpcl-exports.com";
+  const productUrl = `${origin}${getProductHref(product)}`;
+  const packInfo = product.primaryVariant?.name ? ` (${product.primaryVariant.name})` : "";
+  const storeName = product.store?.name || product.storeName;
+  const storeLine = storeName ? `\nSupplier: ${storeName}` : "";
+  const priceLine = sellingPrice && sellingPrice > 0 ? `\nPrice: ${formatCurrency(sellingPrice)}` : "";
+
+  const text =
+    `Hello, I would like to enquire about this product on Karthikeya Farmer Producer Company Limited (KFPCL):\n\n` +
+    `*Product:* ${product.name}${packInfo}` +
+    storeLine +
+    priceLine +
+    `\n\n*Enquiry:* Please share more details regarding pricing, availability, and minimum order quantity (MOQ).\n\n` +
+    `*Product Link:* ${productUrl}`;
+
+  return `https://wa.me/${supplierNumber}?text=${encodeURIComponent(text)}`;
+};
+
 
