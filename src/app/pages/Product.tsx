@@ -471,8 +471,8 @@ export function Product() {
         <div className="absolute top-20 -left-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(10,77,60,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDuration: '4s' }} />
         <div className="absolute bottom-20 -right-20 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(212,168,83,0.02),transparent_70%)] pointer-events-none animate-pulse-glow" style={{ animationDelay: "1.5s", animationDuration: '4s' }} />
 
-        {/* Left Side: Product Image & Gallery Wrapper (Stretches to full height of grid for sticky tracking) */}
-        <div className="relative self-stretch">
+        {/* Left Side: Product Image & Gallery Wrapper */}
+        <div className="relative self-start">
           <div className="space-y-4 sm:space-y-5 md:sticky md:top-24">
             {/* Gallery Integration: horizontal thumbnails on mobile, vertical strip on desktop */}
             <div className="flex flex-col-reverse md:flex-row gap-3 sm:gap-4 items-start">
