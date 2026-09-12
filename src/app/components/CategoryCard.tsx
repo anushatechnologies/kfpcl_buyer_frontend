@@ -37,6 +37,15 @@ export function CategoryCard({ category, compact = false }: CategoryCardProps) {
           
           {/* Glowing ambient ring on hover */}
           <div className="absolute -inset-1.5 rounded-full border border-dashed border-[#D4A853]/35 opacity-0 scale-105 transition-all duration-500 group-hover:opacity-100 group-hover:scale-100 pointer-events-none" />
+
+          {/* Discount Badge — top-right corner, matching reference UI */}
+          {category.discount != null && category.discount > 0 && (
+            <div className="absolute -top-1 -right-1 z-10 flex items-center justify-center rounded-full bg-[#E11D48] px-1.5 py-0.5 shadow-md pointer-events-none">
+              <span className="text-[9px] sm:text-[10px] font-extrabold text-white leading-none whitespace-nowrap">
+                {category.discount}% OFF
+              </span>
+            </div>
+          )}
         </motion.div>
 
         {/* Category Title */}

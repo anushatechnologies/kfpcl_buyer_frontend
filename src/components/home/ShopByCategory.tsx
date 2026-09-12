@@ -102,6 +102,14 @@ export default function ShopByCategory({ showAll = false }: ShopByCategoryProps)
                 ) : (
                   <div className="h-full w-full bg-dark-100" />
                 )}
+                {/* Discount Badge — top-right corner */}
+                {category.discountPercentage != null && category.discountPercentage > 0 && (
+                  <div className="absolute top-2 right-2 z-10 flex items-center justify-center rounded-full bg-[#E11D48] px-2.5 py-1 shadow-md">
+                    <span className="text-[11px] font-extrabold text-white leading-none whitespace-nowrap">
+                      {category.discountPercentage}% OFF
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
